@@ -1,0 +1,80 @@
+{
+  "name": "pgnpack",
+  "version": "0.1.0",
+  "description": "Ultra-compact PGN compression into Base64URL strings using bit-level encoding and optimized move ordering",
+  "keywords": [
+    "chess",
+    "pgn",
+    "compression",
+    "encoding",
+    "chess-pgn",
+    "chess-tools",
+    "javascript",
+    "typescript"
+  ],
+  "homepage": "https://github.com/supertorpe/pgnpack",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/supertorpe/pgnpack.git"
+  },
+  "bugs": {
+    "url": "https://github.com/supertorpe/pgnpack/issues"
+  },
+  "license": "MIT",
+  "author": "supertorpe",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --minify",
+    "build:dev": "tsup src/index.ts --format esm,cjs --dts",
+    "dev": "tsup src/index.ts --watch --format esm,cjs --dts",
+    "test": "vitest",
+    "lint": "eslint src",
+    "docs": "typedoc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "smol-string": "^1.0.3"
+  },
+  "peerDependencies": {
+    "chess.js": "^1.0.0",
+    "chessops": "^0.15.0"
+  },
+  "peerDependenciesMeta": {
+    "chess.js": {
+      "optional": true
+    },
+    "chessops": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.5.0",
+    "chess.js": "^1.0.0",
+    "chessops": "^0.15.0",
+    "eslint": "^10.0.3",
+    "globals": "^17.4.0",
+    "tsup": "^8.5.1",
+    "typedoc": "^0.28.17",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.1",
+    "vitest": "^4.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

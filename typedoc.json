@@ -1,0 +1,10 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "name": "pgnpack",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "plugin": []
+}

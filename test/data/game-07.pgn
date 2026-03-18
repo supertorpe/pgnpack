@@ -1,0 +1,111 @@
+[Event "?"]
+[Site "Biel"]
+[Date "1997.??.??"]
+[Round "?"]
+[White "Pelletier, Y"]
+[Black "Karpov, An"]
+[Result "0-1"]
+[Annotator "Karpov, An"]
+
+1.d4 Nf6 2.c4 e6 3.Nf3 b6 4.a3 Bb7 5.Nc3 d5 6.Bg5 Be7 7.Qa4+ Bc6!? 
+{
+This is a sharp method of fighting for the initiative for Black. Allowing the endgame after 7...Qd7 8.Qxd7+ Nbxd7 is also possible although Black will be on the defensive for quite a while.
+}
+8.Qb3 dxc4 9.Qxc4 0-0 10.e3 Bb7 
+{
+Returning the bishop to its natural Queen's Indian square is necessary in order to develop my knight from b8 and to free my c-pawn. The loss of time involved is more than offset by the three White queen moves. 
+}
+11.Be2 
+{
+Not 11.Bd3? Ba6 12.Nb5 c6 and Black wins. Premature is 11.b4 (trying to clamp down on the Black queenside and the Black c-pawn in particular) as White is still lagging in development, for example: 11...Nbd7 12.Be2 c5 13.dxc5 bxc5 14.b5 (If 14.Bxf6?! Bxf6 15.bxc5 Qa5 16.Rc1 Rfc8 and Black will regain the pawn on c5 with a clear queenside initiative.) 14...Qa5 (14...Nd5!?) 15.0-0 Nb6, with good counterplay.
+}
+11...a6 12.Rc1 Nbd7 13.0-0 b5 14.Qa2 c5 15.Rfd1 
+{
+On the surface White's prospects seem quite promising as he has completed his development and centralized his rooks. 
+}
+15...Nd5! 
+{
+Forcing the exchange of bishops on e7 and securing me control of the d5-square. 
+}
+16.Bxe7 
+{
+If 16.Bf4 Nxf4 17.exf4 Qb6 18.d5 c4, with an edge for Black.
+}
+16...Qxe7 17.dxc5 Nxc5 18.b4 
+{
+A very ambitious approach which weakens the c3-square. More prudent was 18.Nd4.
+}
+18...Nxc3 19.Rxc3 Ne4
+{
+Black has secured control of the classic b7-g2 QID diagonal and in particular the e4-square. 
+}
+20.Rcd3?! 
+{
+The optimism of youth, as doubling on the open d-file seems aggressive, but is really a blind alley. In addition, the rook on d3 interferes with the bishop on e2 attacking the Black a6-b5 pawn duo. It was time for White to pursue equality with 20.Rcc1 Rac8 21.Qb3 with the plan of a3-a4 to liquidate the queenside pawns.
+}
+20...Bd5! 
+{
+This move appeals to my sense of maximization, as thanks to my control of the d5-square, one bishop and one pawn (4 points) is able to neutralize two rooks (10 points) and attack one queen (9 points)! 
+}
+21.Qb2 Rac8 22.Nd2! 
+{
+White correctly attempts to exchange my influential knight. The attempt to contest the open c-file would leave Black slightly better: 22.Rc1 Rxc1+ 23.Qxc1 Qb7 24.Bd1 Rc8.
+}
+22...Nd6! 23.f3?! 
+{
+This protects the e4-square and blunts the Black bishop on d5, while preparing to play e3-e4. However, it weakens the e3-point and the White second rank. 23.Bf3 would be better. 
+}
+23...Bc4! 
+{
+Forcing the exchange of the White knight, after which the lone White bishop does not have positive prospects. 
+}
+24.Nxc4 Nxc4 25.Qb3 Nb6! 
+{
+This prevents any a3-a4 action by White, and his rooks still can't penetrate down the d-file in a meaningful manner. 
+}
+26.Bf1 h6 
+{
+Making luft and hoping to lure White in. If 26...Rc6 27.Rc3.
+}
+27.Rd6?! 
+{
+After 27.Rc3 Nd5! 28.Rxc8 Rxc8, Black has a meaningful initiative. If 27.e4 Rc6, with the idea of Rf8-c8 and Qe7-c7 with the initiative.
+}
+27...Nd5! 
+{
+This cuts the connection and co-ordination of the White rooks. White is now forced to accept the offer of the a6-pawn, after which his rook is out of play. 
+}
+28.Rxa6 Rc3 29.Qb2 Rfc8! 
+{
+Securing total control of the c-file. Instead 29...Rxe3 is premature, as after 30.Rc1 Black has surrendered the open c-file, while 30.Qf2 and White obtains some counterplay can also be considered. Note that 30.Bxb5? would be a mistake in view of 30...Nc3! 31.Qc1 (31.Rd7 Re1+ 32.Kf2 Qh4+ 33.g3 Qxh2+ wins for Black) 31...Nxd1 and Black is better.
+}
+30.e4 Ne3 31.Re1 
+{
+Not 31.Rd2? Rc1 32.Rf2 Qg5 33.h3 (33.Ra8 Qxg2+! 34.Rxg2 Rxf1 mate) 33...Nxf1 34.Rxf1 R8c2 and Black wins.
+}
+31...Nxf1 
+{
+Capturing the bishop weakens White further on the second rank and on g2 in particular. 
+}
+32.Rxf1 Rc2 33.Qe5 Rd8! 
+{
+Note how Black has secured the only two open files on the chessboard, which is ironic when you consider the disposition of the White rooks after 15.Rfd1. 
+}
+34.Qxb5 
+{
+Black wins quickly after 34.Rf2 Rd1+ 35.Rf1 Rdd2.
+}
+34...Rdd2 
+{
+Double trouble. 
+}
+35.Qb8+ Kh7 36.Qg3 Qd7! 
+{
+Preparing decisive penetration along the weakened d4-g1 diagonal and the White first rank. Also winning is 36...Qg5 37.Qxg5 hxg5 38.Rb1 Rxg2+ 39.Kf1 Rcf2+ 40.Ke1 Rxh2 and White is toast.
+}
+37.Ra5 Qd4+ 38.Kh1 Rd1 
+{
+White's back rank is overpowered.
+}
+0-1
+ 

@@ -1,0 +1,40 @@
+[Event "FIDE Grand Swiss 2025"]
+[Site "Samarkand UZB"]
+[Date "2025.09.08"]
+[Round "5.6"]
+[White "Abdusattorov,Nodirbek"]
+[Black "Erdogmus,Yagiz Kaan"]
+[Result "1/2-1/2"]
+[WhiteElo "2771"]
+[BlackElo "2642"]
+[ECO "D33"]
+
+1.c4 e6 2.Nc3 d5 3.d4 c5 4.cxd5 exd5 5.Nf3 Nc6 6.g3 Nf6 7.Bg2 cxd4 8.Nxd4 Bc5
+9.Nb3 Bb6 10.O-O d4 11.Na4 O-O 12.Qd3 Re8 13.Nxb6 axb6 14.Rd1 Bg4 15.Nxd4 Bxe2
+16.Nxe2 Qxd3 17.Rxd3 Rxe2 18.Rd1 h6 19.Bf1 Re5 20.a3 Rd5 21.Be3 Rad8 22.Rdc1 b5
+23.b4 Ne4 24.Bg2 f5 25.g4 Re8 26.gxf5 Rxf5 27.Rd1 Nf6 28.Rac1 Ng4 29.Bc5 Nge5
+30.Rc3 Nc4 31.h4 Rf4 32.h5 Rg4 33.Kf1 Rg5 34.Bd5+ Kh8 35.Bf7 Ra8 36.Bg6 Rg4
+37.Rd5 b6 38.f3 Rg5 39.Rxg5 hxg5 40.Bxb6 N6e5 41.Bd4 Nxg6 42.hxg6 Ra6 43.Kg2 Kg8
+44.Rc1 Rd6 45.Bc5 Rd2+ 46.Kg3 Ne5 47.Be3 Rd8 48.Bxg5 Ra8 49.Rc7 Nxg6 50.Bc1 Rf8
+51.Bb2 Rf7 52.Rxf7 Kxf7 53.Kg4 Nf8 54.Kf5 Nd7 55.Ke4 Nb6 56.Kd4 Ke6 57.Bc1 Kd6
+58.Bf4+ Kc6 59.Be5 g6 60.Bf4 Nd7 61.Bg5 Kd6 62.Bh4 Nb6 63.Bg3+ Kc6 64.Bf4 Nd7
+65.Bh6 Kd6 66.Bg5 Nb6 67.Bf6 Nd7 68.Bd8 Nf8 69.Ke4 Nd7 70.Kf4 Ke6 71.Bc7 Nf6
+72.Kg5 Kf7 73.Be5 Nd5 74.Bd4 Ne7 75.Kf4 Ke6 76.Ke4 Nd5 77.Be3 Ne7 78.Bg1 Nf5
+79.Bh2 Nh4 80.Bf4 Nf5 81.Bc7 Kd7 82.Bb6 Ke6 83.Bc5 Ng3+ 84.Kf4 Nf5 85.Kg5 Kf7
+86.Kg4 Kf6 87.Kf4 Ke6 88.Ke4 Ng3+ 89.Ke3 Nf5+ 90.Kf4 Kf6 91.Ke4 Ke6 92.Bf2 Kd6
+93.Be1 Ke6 94.Bd2 Kd6 95.Bg5 Ng3+ 96.Kf4 Nf5 97.Bd8 Ke6 98.Ke4 Ng3+ 99.Kf4 Nf5
+100.Bb6 Kf6 101.Bg1 Ke6 102.Bh2 Kf6 103.Ke4 Ke6 104.Bf4 Nh4 105.Kd4 g5 106.Be3 Nxf3+
+107.Kc5 g4 108.Kxb5 g3 109.Ka6 Kd5 110.b5 Ke4 111.Bc5 Kd5 112.Be3 Ke4 113.Ba7 Nd4
+114.Bxd4 Kxd4 115.b6 g2 116.b7 g1=Q 117.b8=Q Qc1 118.Qd6+ Ke4 119.a4 Qc4+
+120.Ka5 Kf3 121.Qe5 Qc6 122.Kb4 Qb6+ 123.Ka3 Qc6 124.a5 Qc1+ 125.Kb4 Qb1+
+126.Kc5 Qc2+ 127.Kd6 Qa4 128.Qc5 Kg4 129.Kc7 Qf4+ 130.Kc8 Qe4 131.Kb8 Qf4+
+132.Kb7 Qf7+ 133.Ka6 Qf1+ 134.Kb6 Qf6+ 135.Kb5 Kh3 136.Qe3+ Kh2 137.a6 Qf1+
+138.Kb6 Qf6+ 139.Kb7 Qf7+ 140.Kb8 Qg8+ 141.Kc7 Qf7+ 142.Kd6 Qf6+ 143.Qe6 Qd4+
+144.Kc6 Qc3+ 145.Kd7 Qg7+ 146.Qe7 Qg4+ 147.Kc7 Qc4+ 148.Kb7 Qd5+ 149.Kb8 Qg8+
+150.Ka7 Qd5 151.Qb7 Qd4+ 152.Ka8 Kh3 153.Qc8+ Kh4 154.Qc7 Qe4+ 155.Kb8 Qb4+
+156.Kc8 Qg4+ 157.Qd7 Qc4+ 158.Kb7 Qb4+ 159.Ka7 Qc5+ 160.Kb8 Qb6+ 161.Qb7 Qd6+
+162.Ka7 Qd4+ 163.Qb6 Qd7+ 164.Kb8 Qe8+ 165.Kc7 Qf7+ 166.Kc8 Qf5+ 167.Kb7 Qe4+
+168.Qc6 Qb4+ 169.Kc7 Qe7+ 170.Kb6 Qb4+ 171.Qb5 Qd6+ 172.Ka5 Qd8+ 173.Kb4 Qd2+
+174.Ka3 Qc3+ 175.Ka4 Qa1+ 176.Kb4 Qe1+ 177.Kc5 Qe7+ 178.Kb6 Qd8+ 179.Kb7 Qe7+
+180.Kc8 Qe6+ 181.Kc7 Qe7+ 182.Qd7 Qc5+ 183.Qc6 Qe7+ 184.Kb6 Qb4+ 185.Qb5 Qd6+
+186.Ka5 Qd8+ 187.Ka4 Qd1+ 188.Qb3 Qa1+ 189.Kb5 Qe5+ 190.Kb4  1/2-1/2

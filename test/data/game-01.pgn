@@ -1,0 +1,6 @@
+[Event "Test Game 1"]
+[White "Player A"]
+[Black "Player B"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 1-0
