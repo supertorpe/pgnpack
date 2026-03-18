@@ -165,7 +165,7 @@ describe("Test data files", () => {
 
         expect(expectedMoves.length).toBeGreaterThan(0)
 
-        const encoded = await encodePGNWith(chess, content, { tags: "*" })
+        const encoded = await encodePGNWith(chess, content, { tags: "*", includeAnnotations: true })
         const decoded = await decodePGNWith(chess, encoded)
 
         expect(decoded).toContain("[Event \"Norway Chess 2025\"]")
