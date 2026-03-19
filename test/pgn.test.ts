@@ -64,7 +64,25 @@ describe("PGN encode/decode", () => {
         expect(decoded).toBe("1. e4 e5 2. Nf3 Nc6")
       })
 
-      it("encodes all tags with wildcard", async () => {
+      it("encodes no tags when false", async () => {
+        const pgn = `[Event "Test Tournament"]
+[Site "London"]
+[White "Player A"]
+[Black "Player B"]
+
+1. e4 e5 2. Nf3 Nc6`
+
+        const encoded = await encodePGNWith(chess, pgn, { tags: false })
+        const decoded = await decodePGNWith(chess, encoded)
+
+        expect(decoded).not.toContain("[Event")
+        expect(decoded).not.toContain("[Site")
+        expect(decoded).not.toContain("[White")
+        expect(decoded).not.toContain("[Black")
+        expect(decoded).toBe("1. e4 e5 2. Nf3 Nc6")
+      })
+
+      it("encodes all tags with true", async () => {
         const pgn = `[Event "Test Tournament"]
 [Site "London"]
 [Date "2024.01.01"]
@@ -74,7 +92,7 @@ describe("PGN encode/decode", () => {
 
 1. e4 e5 2. Nf3 Nc6`
 
-        const encoded = await encodePGNWith(chess, pgn, { tags: "*" })
+        const encoded = await encodePGNWith(chess, pgn, { tags: true })
         const decoded = await decodePGNWith(chess, encoded)
 
         expect(decoded).toContain('[Event "Test Tournament"]')
@@ -85,10 +103,10 @@ describe("PGN encode/decode", () => {
         expect(decoded).toContain("[Result")
       })
 
-      it("encodes NAGs and annotations with includeAnnotations", async () => {
+      it("encodes NAGs and annotations with annotations", async () => {
         const pgn = "1. e4 $1 $14 {good move} e5 $4 2. d4 $13"
 
-        const encoded = await encodePGNWith(chess, pgn, { includeAnnotations: true })
+        const encoded = await encodePGNWith(chess, pgn, { annotations: true })
         const decoded = await decodePGNWith(chess, encoded)
 
         expect(decoded).toContain("$1")
@@ -98,7 +116,7 @@ describe("PGN encode/decode", () => {
         expect(decoded).toContain("{good move}")
       })
 
-      it("does not encode NAGs or annotations without includeAnnotations", async () => {
+      it("does not encode NAGs or annotations without annotations", async () => {
         const pgn = "1. e4 $1 $14 {good move} e5 $4 2. d4 $13"
 
         const encoded = await encodePGNWith(chess, pgn)

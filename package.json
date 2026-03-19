@@ -1,6 +1,6 @@
 {
   "name": "pgnpack",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ultra-compact PGN compression into Base64URL strings using bit-level encoding and optimized move ordering",
   "keywords": [
     "chess",

@@ -3,6 +3,7 @@ import LZString from 'lz-string'
 
 const pgnInput = document.getElementById('pgn')
 const tagsInput = document.getElementById('tags')
+const allTagsCheckbox = document.getElementById('allTags')
 const annotationsCheckbox = document.getElementById('annotations')
 const processBtn = document.getElementById('process')
 const resultDiv = document.getElementById('result')
@@ -25,12 +26,16 @@ processBtn.addEventListener('click', async () => {
 
     const tagsValue = tagsInput.value.trim()
     let tags = undefined
-    if (tagsValue.length > 0) {
-      tags = tagsValue.includes(',') ? tagsValue.split(',').map(t => t.trim()) : tagsValue
+    if (allTagsCheckbox.checked) {
+      tags = true
+    } else if (tagsValue.length > 0) {
+      tags = tagsValue.includes(',') ? tagsValue.split(',').map(t => t.trim()) : [tagsValue]
+    } else {
+      tags = false
     }
     const options = {
       tags,
-      includeAnnotations: annotationsCheckbox.checked
+      annotations: annotationsCheckbox.checked
     }
 
     const encoded = await encodePGN(pgn, options)
@@ -65,6 +70,8 @@ processBtn.addEventListener('click', async () => {
     ].join('')
 
     statsDiv.innerHTML = statsHtml
+
+    document.getElementById('original-size').textContent = `${pgn.length} chars`
 
     resultDiv.style.display = 'block'
   } catch (err) {

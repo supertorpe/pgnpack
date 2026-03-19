@@ -61,7 +61,7 @@ const pgnWithMeta = `[Event "Test"]
 
 const fullCode = await encodePGN(pgnWithMeta, {
   tags: ["Event", "White", "Black"],
-  includeAnnotations: true
+  annotations: true
 })
 
 console.log(await decodePGN(fullCode))
@@ -92,8 +92,8 @@ Encodes a PGN string into a compact base64url string.
 **EncodeOptions:**
 ```typescript
 interface EncodeOptions {
-  tags?: string | string[]   // Tags to include: "*" for all, or array like ["Event", "White"]
-  includeAnnotations?: boolean   // Include move annotations and NAGs (default: false)
+  tags?: boolean | string[]   // Tags to include: true for all, false for none (by default), or array like ["Event", "White"]
+  annotations?: boolean   // Include move annotations and NAGs (default: false)
 }
 ```
 
@@ -123,6 +123,7 @@ Chess and chess variant rules and operations in TypeScript.
 A JavaScript chess library. Used as a fallback when chessops is not available.
 
 ### [lz-string](https://github.com/pieroxy/lz-string)
+LZ-based compression algorithm for JavaScript
 
 ## License
 

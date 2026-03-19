@@ -15,7 +15,7 @@ describe("Cross-library encode/decode", () => {
     const jsChess = await createChessJsAdapter()
     const jsChess2 = await createChessJsAdapter()
 
-    const encoded = await encodePGNWith(jsChess, game04Pgn, { tags: "*" })
+    const encoded = await encodePGNWith(jsChess, game04Pgn, { tags: true })
     const decoded = await decodePGNWith(jsChess2, encoded)
 
     expect(decoded).toContain('[Event "Norway Chess 2025"]')
@@ -27,7 +27,7 @@ describe("Cross-library encode/decode", () => {
     const opsChess = await createChessopsAdapter()
     const opsChess2 = await createChessopsAdapter()
 
-    const encoded = await encodePGNWith(opsChess, game04Pgn, { tags: "*" })
+    const encoded = await encodePGNWith(opsChess, game04Pgn, { tags: true })
     const decoded = await decodePGNWith(opsChess2, encoded)
 
     expect(decoded).toContain('[Event "Norway Chess 2025"]')
@@ -66,7 +66,7 @@ describe("Cross-library encode/decode", () => {
     const jsChess = await createChessJsAdapter()
     const jsChess2 = await createChessJsAdapter()
 
-    const encoded = await encodePGNWith(jsChess, pgn, { tags: "*" })
+    const encoded = await encodePGNWith(jsChess, pgn, { tags: true })
     const decoded = await decodePGNWith(jsChess2, encoded)
 
     expect(decoded).toContain('[Event "Test"]')
@@ -83,7 +83,7 @@ describe("Cross-library encode/decode", () => {
     const opsChess = await createChessopsAdapter()
     const opsChess2 = await createChessopsAdapter()
 
-    const encoded = await encodePGNWith(opsChess, pgn, { tags: "*" })
+    const encoded = await encodePGNWith(opsChess, pgn, { tags: true })
     const decoded = await decodePGNWith(opsChess2, encoded)
 
     expect(decoded).toContain('[Event "Test"]')

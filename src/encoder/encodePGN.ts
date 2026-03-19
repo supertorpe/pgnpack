@@ -29,8 +29,8 @@ import { encodeTagsBlock } from "../codec/tagCodec"
  * Options for encoding PGN
  */
 export interface EncodeOptions {
-  tags?: string | string[]  // Which tag pairs to include: "*" for all, or array of tag names
-  includeAnnotations?: boolean // Whether to include NAGs and comments
+  tags?: boolean | string[]  // Which tag pairs to include: true for all, false for none (by default), or array of tag names
+  annotations?: boolean // Whether to include NAGs and comments
 }
 
 /**
@@ -42,7 +42,7 @@ export interface EncodeOptions {
  * @param tagFilter - "*" for all, or array of tag names to include
  * @returns Array of parsed tag objects
  */
-function parseAndFilterTags(tagsBlock: string, tagFilter: string | string[] | undefined): Array<{ name: string; value: string }> {
+function parseAndFilterTags(tagsBlock: string, tagFilter: boolean | string[] | undefined): Array<{ name: string; value: string }> {
   if (!tagFilter || (Array.isArray(tagFilter) && tagFilter.length === 0)) {
     return []
   }
@@ -51,7 +51,7 @@ function parseAndFilterTags(tagsBlock: string, tagFilter: string | string[] | un
   const tags: Array<{ name: string; value: string }> = []
   let match
 
-  if (tagFilter === "*") {
+  if (tagFilter === true) {
     while ((match = tagRegex.exec(tagsBlock)) !== null) {
       tags.push({ name: match[1], value: match[2] })
     }
@@ -137,14 +137,14 @@ function removeRav(pgn: string): string {
  * 
  * Post-text includes NAGs (e.g., "$1", "$2") and block comments that follow a move.
  * @param pgn - PGN string to parse
- * @param includeAnnotations - Whether to extract annotations
+ * @param annotations - Whether to extract annotations
  * @returns Array of {san, postText} objects for each move
  */
-async function findMovesAndPostText(pgn: string, includeAnnotations: boolean = false): Promise<Array<{ san: string; postText: string }>> {
+async function findMovesAndPostText(pgn: string, annotations: boolean = false): Promise<Array<{ san: string; postText: string }>> {
   return withChess(async (chess) => {
     const result: Array<{ san: string; postText: string }> = []
 
-    const pgnToParse = includeAnnotations ? pgn : removeAnnotations(pgn)
+    const pgnToParse = annotations ? pgn : removeAnnotations(pgn)
 
     let moves: ReturnType<typeof chess.history> = []
     try {
@@ -165,7 +165,7 @@ async function findMovesAndPostText(pgn: string, includeAnnotations: boolean = f
         try {
           const move = chess.move(san)
           if (move) {
-            result.push({ san: move.san, postText: includeAnnotations ? match[0].trim() : "" })
+            result.push({ san: move.san, postText: annotations ? match[0].trim() : "" })
           }
         } catch {
           continue
@@ -193,7 +193,7 @@ async function findMovesAndPostText(pgn: string, includeAnnotations: boolean = f
       const move = moves[moveIndex] as { san: string } | undefined
       if (move) {
         let postText = ""
-        if (includeAnnotations) {
+        if (annotations) {
           const nextMove = moveMatches[i + 1]
           const searchEnd = nextMove ? nextMove.index : pgnToParse.length
 
@@ -230,24 +230,24 @@ async function findMovesAndPostText(pgn: string, includeAnnotations: boolean = f
  * @param tags - Filtered tag array
  * @param moveList - Array of SAN moves
  * @param postTexts - Array of post-move annotations
- * @param includeAnnotations - Whether to include annotations
+ * @param annotations - Whether to include annotations
  * @returns Reconstructed PGN string
  */
 function buildFilteredPgnString(
   tags: Array<{ name: string; value: string }>,
   moveList: string[],
   postTexts: string[],
-  includeAnnotations: boolean
+  annotations: boolean
 ): string {
   const tagsStr = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
 
   const moveTokens: string[] = []
   for (let i = 0; i < moveList.length; i++) {
-    const postText = includeAnnotations ? (postTexts[i] || "") : ""
+    const postText = annotations ? (postTexts[i] || "") : ""
     if (i % 2 === 0) {
-      moveTokens.push(`${Math.floor(i / 2) + 1}. ${moveList[i]}${postText}`)
+      moveTokens.push(`${Math.floor(i / 2) + 1}. ${moveList[i]}${postText ? " " + postText : ""}`)
     } else {
-      moveTokens.push(`${moveList[i]}${postText}`)
+      moveTokens.push(`${moveList[i]}${postText ? " " + postText : ""}`)
     }
   }
 
@@ -285,7 +285,7 @@ async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Prom
   const tags = parseAndFilterTags(rawTagsBlock, options.tags)
 
   const movesSection = headerEndIndex > 0 ? lines.slice(headerEndIndex).join(" ") : pgn
-  const moveData = await findMovesAndPostText(movesSection, options.includeAnnotations ?? false)
+  const moveData = await findMovesAndPostText(movesSection, options.annotations ?? false)
 
   return { tags, moves: moveData }
 }
@@ -294,8 +294,8 @@ async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Prom
  * Extracts metadata flags from encoding options
  */
 function getMetadataFlags(options: EncodeOptions): { hasTags: boolean; hasAnnotations: boolean; hasMetadata: boolean } {
-  const hasTags = Boolean(options.tags && (options.tags === "*" || (Array.isArray(options.tags) && options.tags.length > 0)))
-  const hasAnnotations = options.includeAnnotations ?? false
+  const hasTags = Boolean(options.tags && (options.tags === true || (Array.isArray(options.tags) && options.tags.length > 0)))
+  const hasAnnotations = options.annotations ?? false
   const hasMetadata = hasTags || hasAnnotations
   return { hasTags, hasAnnotations, hasMetadata }
 }
@@ -365,7 +365,7 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
     return customEncoded
   }
 
-  const filteredPgn = buildFilteredPgnString(tags, moveList, postTexts, options.includeAnnotations ?? false)
+  const filteredPgn = buildFilteredPgnString(tags, moveList, postTexts, options.annotations ?? false)
   const lzCompressed = LZString.compressToEncodedURIComponent(filteredPgn)
   const lzEncoded = "lz_" + lzCompressed
 

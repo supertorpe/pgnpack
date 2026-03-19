@@ -129,8 +129,13 @@
   </div>
   
   <div class="form-group checkbox-group">
+    <input type="checkbox" id="allTags">
+    <label for="allTags" style="display: inline; margin-bottom: 0;">Include All Tags</label>
+  </div>
+  
+  <div class="form-group checkbox-group">
     <input type="checkbox" id="annotations">
-    <label for="annotations" style="display: inline; margin-bottom: 0;">Include Annotations</label>
+    <label for="annotations" style="display: inline; margin-bottom: 0;">Annotations</label>
   </div>
   
   <button id="process">Encode & Decode</button>
@@ -155,6 +160,9 @@
       <h3>Compression Comparison</h3>
       <div class="result-content">
         <table class="stats-table" id="stats"></table>
+      </div>
+      <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;">
+        <strong>Original:</strong> <span id="original-size"></span>
       </div>
     </div>
     </div>
