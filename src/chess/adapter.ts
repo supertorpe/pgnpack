@@ -2,8 +2,8 @@
  * Chess library adapter - Unified interface for chess.js and chessops
  * 
  * Provides a consistent API for PGN manipulation regardless of which underlying
- * chess library is installed. Supports dynamic loading of either chess.js (preferred)
- * or chessops as a fallback.
+ * chess library is installed. Supports dynamic loading of either chessops (preferred)
+ * or chess.js as a fallback.
  * 
  * The adapter handles:
  * - Loading PGN strings and parsing move history
@@ -14,9 +14,6 @@
  * Both chess.js and chessops have quirks that require special handling,
  * particularly around PGN parsing and move conversion.
  */
-
-import { existsSync } from "fs"
-import { resolve } from "path"
 
 // Unified move representation across both libraries
 export interface Move {
@@ -40,29 +37,7 @@ export interface ChessAdapter {
 let cachedChess: ChessAdapter | null = null
 let initPromise: Promise<ChessAdapter> | null = null
 
-/**
- * Checks if a package is installed by looking in node_modules
- * @param name - Package name to check
- * @returns true if the package is available
- */
-function isLibraryAvailable(name: string): boolean {
-  try {
-    const path = resolve(process.cwd(), "node_modules", name)
-    return existsSync(path)
-  } catch {
-    return false
-  }
-}
-
-/**
- * Creates a chess.js adapter if the library is available
- * 
- * chess.js provides a straightforward API and is the preferred library.
- * The adapter wraps its synchronous methods in the async ChessAdapter interface.
- * @returns ChessAdapter or null if chess.js is not installed
- */
 async function tryCreateChessJsAdapter(): Promise<ChessAdapter | null> {
-  if (!isLibraryAvailable("chess.js")) return null
   try {
     const { Chess } = await import("chess.js")
     let chess = new Chess()
@@ -93,7 +68,8 @@ async function tryCreateChessJsAdapter(): Promise<ChessAdapter | null> {
   }
 }
 
-/**
+async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
+  /**
  * Creates a chessops adapter if the library is available
  * 
  * chessops is a more lightweight library but has a more complex API.
@@ -107,8 +83,6 @@ async function tryCreateChessJsAdapter(): Promise<ChessAdapter | null> {
  * (e.g., "Qdc1" vs "Qxc1") and promotion notation.
  * @returns ChessAdapter or null if chessops is not installed
  */
-async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
-  if (!isLibraryAvailable("chessops")) return null
   try {
     const chessopsChess = await import("chessops/chess")
     const { makeSanAndPlay, makeSan } = await import("chessops/san")
