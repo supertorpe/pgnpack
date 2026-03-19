@@ -22,6 +22,7 @@ import { base64urlEncode } from "../compression/base64url"
 import { orderMoves } from "../chess/moveOrdering"
 import { writeVLQ } from "../compression/vlq"
 import { compress } from "smol-string"
+import { encodeTagsBlock } from "../codec/tagCodec"
 
 /**
  * Options for encoding PGN
@@ -32,35 +33,38 @@ export interface EncodeOptions {
 }
 
 /**
- * Filters PGN tag pairs based on options
+ * Parses and filters PGN tag pairs based on options
  * 
  * Used to selectively include header tags in the encoded output.
- * Returns empty string if no tags should be included.
+ * Returns array of {name, value} objects.
  * @param tagsBlock - Raw tag section from PGN
  * @param tagFilter - "*" for all, or array of tag names to include
- * @returns Filtered tag block string
+ * @returns Array of parsed tag objects
  */
-function filterTags(tagsBlock: string, tagFilter: string | string[] | undefined): string {
+function parseAndFilterTags(tagsBlock: string, tagFilter: string | string[] | undefined): Array<{ name: string; value: string }> {
   if (!tagFilter || (Array.isArray(tagFilter) && tagFilter.length === 0)) {
-    return ""
+    return []
   }
+
+  const tagRegex = /\[(\w+)\s+"([^"]*)"\]/g
+  const tags: Array<{ name: string; value: string }> = []
+  let match
 
   if (tagFilter === "*") {
-    return tagsBlock
+    while ((match = tagRegex.exec(tagsBlock)) !== null) {
+      tags.push({ name: match[1], value: match[2] })
+    }
+  } else {
+    const allowedTags = new Set(Array.isArray(tagFilter) ? tagFilter : [tagFilter])
+    const tempRegex = /\[(\w+)\s+"([^"]*)"\]/g
+    while ((match = tempRegex.exec(tagsBlock)) !== null) {
+      if (allowedTags.has(match[1])) {
+        tags.push({ name: match[1], value: match[2] })
+      }
+    }
   }
 
-  const allowedTags = new Set(Array.isArray(tagFilter) ? tagFilter : [tagFilter])
-
-  const lines = tagsBlock.split("\n")
-  const filteredLines = lines.filter((line) => {
-    const trimmed = line.trim()
-    if (!trimmed.startsWith("[")) return false
-    const match = trimmed.match(/^\[(\w+)\s+/)
-    if (!match) return false
-    return allowedTags.has(match[1])
-  })
-
-  return filteredLines.join("\n")
+  return tags
 }
 
 /**
@@ -230,7 +234,7 @@ async function findMovesAndPostText(pgn: string, includeAnnotations: boolean = f
  * @param options - Encoding options
  * @returns Separated tags and moves
  */
-async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Promise<{ tagsBlock: string; moves: Array<{ san: string; postText: string }> }> {
+async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Promise<{ tags: Array<{ name: string; value: string }>; moves: Array<{ san: string; postText: string }> }> {
   const lines = pgn.split("\n")
 
   let headerEndIndex = 0
@@ -245,12 +249,12 @@ async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Prom
   }
 
   const rawTagsBlock = lines.slice(0, headerEndIndex).join("\n")
-  const tagsBlock = filterTags(rawTagsBlock, options.tags)
+  const tags = parseAndFilterTags(rawTagsBlock, options.tags)
 
   const movesSection = headerEndIndex > 0 ? lines.slice(headerEndIndex).join(" ") : pgn
   const moveData = await findMovesAndPostText(movesSection, options.includeAnnotations ?? false)
 
-  return { tagsBlock, moves: moveData }
+  return { tags, moves: moveData }
 }
 
 /**
@@ -270,7 +274,7 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
   const { hasMetadata } = getMetadataFlags(options)
 
   const parts = await splitPgnIntoParts(pgn, options)
-  const tagsBlock = parts.tagsBlock
+  const tags = parts.tags
   const moveList = parts.moves.map((m) => m.san)
   const postTexts = parts.moves.map((m) => m.postText)
 
@@ -281,14 +285,10 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
 
   writer.write(hasMetadata ? 0 : 1, 1)
 
-  if (hasMetadata && tagsBlock) {
-    const compressed = compress(tagsBlock)
-    const charCodes = new Uint16Array(compressed.length)
-    for (let i = 0; i < compressed.length; i++) {
-      charCodes[i] = compressed.charCodeAt(i)
-    }
-    const bytes = new Uint8Array(charCodes.buffer)
-    writeVLQ(writer, bytes.length)
+  if (hasMetadata && tags.length > 0) {
+    const tagsString = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
+    const { bytes, length } = encodeTagsBlock(tagsString)
+    writeVLQ(writer, length)
     for (const byte of bytes) {
       writer.write(byte, 8)
     }

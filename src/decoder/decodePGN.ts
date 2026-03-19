@@ -20,6 +20,7 @@ import { base64urlDecode } from "../compression/base64url"
 import { orderMoves } from "../chess/moveOrdering"
 import { readVLQ } from "../compression/vlq"
 import { decompress } from "smol-string"
+import { decodeTagsBlock } from "../codec/tagCodec"
 
 /**
  * Decodes a compact PGN string back to human-readable PGN
@@ -39,19 +40,14 @@ async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
 
   const compact = reader.read(1) === 1
 
-  const headerLength = readVLQ(reader)
+  const blockLength = readVLQ(reader)
   let tagsBlock = ""
-  if (headerLength > 0) {
-    const bytes = new Uint8Array(headerLength)
-    for (let i = 0; i < headerLength; i++) {
-      bytes[i] = reader.read(8)
+  if (blockLength > 0) {
+    const tagBytes = new Uint8Array(blockLength)
+    for (let i = 0; i < blockLength; i++) {
+      tagBytes[i] = reader.read(8)
     }
-    const charCodes = new Uint16Array(bytes.buffer)
-    let compressed = ""
-    for (let i = 0; i < charCodes.length; i++) {
-      compressed += String.fromCharCode(charCodes[i])
-    }
-    tagsBlock = compressed ? decompress(compressed) || "" : ""
+    tagsBlock = decodeTagsBlock(tagBytes, blockLength)
   }
 
   const totalMoves = readVLQ(reader)
