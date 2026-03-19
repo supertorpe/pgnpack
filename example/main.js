@@ -10,7 +10,6 @@ const errorDiv = document.getElementById('error')
 const encodedDiv = document.getElementById('encoded')
 const decodedDiv = document.getElementById('decoded')
 const statsDiv = document.getElementById('stats')
-const lzStringResultDiv = document.getElementById('lz-string-result')
 
 processBtn.addEventListener('click', async () => {
   resultDiv.style.display = 'none'
@@ -40,18 +39,22 @@ processBtn.addEventListener('click', async () => {
     encodedDiv.textContent = encoded
     decodedDiv.textContent = decoded
 
-    const lzBase64 = LZString.compressToEncodedURIComponent(pgn)
+    const lzOnDecoded = LZString.compressToEncodedURIComponent(decoded)
+    document.getElementById('lz-on-decoded').textContent = lzOnDecoded
+
+    const lzRoundtrip = LZString.decompressFromEncodedURIComponent(lzOnDecoded)
+    document.getElementById('lz-on-decoded-roundtrip').textContent = lzRoundtrip === decoded ? 'OK' : 'MISMATCH'
 
     const methods = [
       { name: 'pgnpack', size: encoded.length },
-      { name: 'lz-string', size: lzBase64.length },
+      { name: 'lz-string', size: lzOnDecoded.length },
     ]
     const minSize = Math.min(...methods.map(m => m.size))
 
     const statsHtml = [
       '<tr><th>Method</th><th>Size</th><th>Ratio</th></tr>',
       ...methods.map(m => {
-        const ratio = (m.size / pgn.length * 100).toFixed(1)
+        const ratio = (m.size / decoded.length * 100).toFixed(1)
         const isWinner = m.size === minSize
         return `<tr>
           <td class="${isWinner ? 'winner' : ''}">${m.name}${isWinner ? ' (best)' : ''}</td>
@@ -61,7 +64,6 @@ processBtn.addEventListener('click', async () => {
       })
     ].join('')
 
-    lzStringResultDiv.textContent = lzBase64
     statsDiv.innerHTML = statsHtml
 
     resultDiv.style.display = 'block'

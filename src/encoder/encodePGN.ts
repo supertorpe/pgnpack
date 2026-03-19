@@ -3,18 +3,18 @@
  * 
  * The encoding process:
  * 1. Parse PGN into header (tags) and move text
-  * 2. Try both custom encoding and lz-string compression
-  * 3. Use the shorter result (with header to indicate method)
-  * 
-  * Custom encoding:
-  *   a. Generate all legal moves from current position
-  *   b. Order them by likelihood (promotions, captures, checks)
-  *   c. Write the index of the actual move (using minimal bits)
-  *   d. Compress tags and post-move text
-  * 
-  * lz-string fallback:
-  *   - If lz-string compression produces shorter result than custom encoding,
-  *     use it instead with a flag to indicate this in the header.
+ * 2. Try both custom encoding and lz-string compression
+ * 3. Use the shorter result (with header to indicate method)
+ * 
+ * Custom encoding:
+ *   a. Generate all legal moves from current position
+ *   b. Order them by likelihood (promotions, captures, checks)
+ *   c. Write the index of the actual move (using minimal bits)
+ *   d. Compress tags and post-move text
+ * 
+ * lz-string fallback:
+ *   - If lz-string compression produces shorter result than custom encoding,
+ *     use it instead with a flag to indicate this in the header.
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -223,6 +223,38 @@ async function findMovesAndPostText(pgn: string, includeAnnotations: boolean = f
 }
 
 /**
+ * Builds a filtered PGN string from parsed components
+ * 
+ * Used for LZ-String comparison - reconstructs PGN from the same
+ * filtered/parsed data that custom encoding uses.
+ * @param tags - Filtered tag array
+ * @param moveList - Array of SAN moves
+ * @param postTexts - Array of post-move annotations
+ * @param includeAnnotations - Whether to include annotations
+ * @returns Reconstructed PGN string
+ */
+function buildFilteredPgnString(
+  tags: Array<{ name: string; value: string }>,
+  moveList: string[],
+  postTexts: string[],
+  includeAnnotations: boolean
+): string {
+  const tagsStr = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
+
+  const moveTokens: string[] = []
+  for (let i = 0; i < moveList.length; i++) {
+    const postText = includeAnnotations ? (postTexts[i] || "") : ""
+    if (i % 2 === 0) {
+      moveTokens.push(`${Math.floor(i / 2) + 1}. ${moveList[i]}${postText}`)
+    } else {
+      moveTokens.push(`${moveList[i]}${postText}`)
+    }
+  }
+
+  return tagsStr ? tagsStr + "\n" + moveTokens.join(" ") : moveTokens.join(" ")
+}
+
+/**
  * Splits PGN into header tags and move text
  * 
  * Separates the PGN file into:
@@ -333,7 +365,8 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
     return customEncoded
   }
 
-  const lzCompressed = LZString.compressToEncodedURIComponent(pgn)
+  const filteredPgn = buildFilteredPgnString(tags, moveList, postTexts, options.includeAnnotations ?? false)
+  const lzCompressed = LZString.compressToEncodedURIComponent(filteredPgn)
   const lzEncoded = "lz_" + lzCompressed
 
   return customEncoded.length <= lzEncoded.length ? customEncoded : lzEncoded
