@@ -1,8 +1,13 @@
-import { describe,it,expect } from "vitest"
+import { describe, it, expect } from "vitest"
 import { BitWriter } from "../src/compression/bitWriter"
 import { BitReader } from "../src/compression/bitReader"
-import { writeVLQ,readVLQ,writeSignedVLQ,readSignedVLQ } from "../src/compression/vlq"
-import { base64urlEncode,base64urlDecode } from "../src/compression/base64url"
+import { writeVLQ, readVLQ, writeSignedVLQ, readSignedVLQ } from "../src/compression/vlq"
+import { base64urlEncode, base64urlDecode } from "../src/compression/base64url"
+import LZString from "lz-string"
+import { encodePGNWith } from "../src"
+import { createChessJsAdapter } from "../src"
+import { readFileSync } from "fs"
+import { join } from "path"
 
 describe("BitWriter/BitReader",()=>{
 
@@ -131,4 +136,35 @@ describe("base64url",()=>{
     expect(decoded).toEqual(original)
   })
 
+})
+
+describe("Compression comparison", () => {
+  const files = ["game-04.pgn", "game-05.pgn"]
+
+  for (const file of files) {
+    it(`compares pgnpack vs lz-string for ${file}`, async () => {
+      const chess = await createChessJsAdapter()
+      const pgn = readFileSync(join(__dirname, "data", file), "utf-8")
+
+      const lzCompressed = LZString.compressToEncodedURIComponent(pgn)
+      const lzChars = lzCompressed.length
+
+      const encoded = await encodePGNWith(chess, pgn, { tags: "*", includeAnnotations: true })
+      const encodedChars = encoded.length
+
+      const ratio = lzChars / encodedChars
+      const winner = encodedChars < lzChars ? "pgnpack" : "lz-string"
+      const smaller = Math.min(lzChars, encodedChars)
+      const larger = Math.max(lzChars, encodedChars)
+
+      console.log(`\n=== ${file} ===`)
+      console.log(`Original: ${pgn.length} chars`)
+      console.log(`lz-string: ${lzChars} chars (${(lzChars / pgn.length * 100).toFixed(1)}%)`)
+      console.log(`pgnpack: ${encodedChars} chars (${(encodedChars / pgn.length * 100).toFixed(1)}%)`)
+      console.log(`Winner: ${winner} (${(larger / smaller).toFixed(2)}x larger)`)
+
+      expect(encodedChars).toBeLessThan(pgn.length)
+      expect(lzChars).toBeLessThan(pgn.length)
+    })
+  }
 })

@@ -3,17 +3,18 @@
  * 
  * The encoding process:
  * 1. Parse PGN into header (tags) and move text
- * 2. Filter tags based on options (include all, specific, or none)
- * 3. Remove annotations and RAV (variations) unless requested
- * 4. For each move:
- *    a. Generate all legal moves from current position
- *    b. Order them by likelihood (promotions, captures, checks)
- *    c. Write the index of the actual move (using minimal bits)
- *    d. If annotations enabled, compress and write post-move text
- * 5. Convert bits to bytes, then to base64url
- * 
- * The compression comes from move ordering: by predicting likely moves,
- * we use fewer bits to identify which of the legal moves was played.
+  * 2. Try both custom encoding and lz-string compression
+  * 3. Use the shorter result (with header to indicate method)
+  * 
+  * Custom encoding:
+  *   a. Generate all legal moves from current position
+  *   b. Order them by likelihood (promotions, captures, checks)
+  *   c. Write the index of the actual move (using minimal bits)
+  *   d. Compress tags and post-move text
+  * 
+  * lz-string fallback:
+  *   - If lz-string compression produces shorter result than custom encoding,
+  *     use it instead with a flag to indicate this in the header.
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -21,7 +22,7 @@ import { BitWriter } from "../compression/bitWriter"
 import { base64urlEncode } from "../compression/base64url"
 import { orderMoves } from "../chess/moveOrdering"
 import { writeVLQ } from "../compression/vlq"
-import { compress } from "smol-string"
+import LZString from "lz-string"
 import { encodeTagsBlock } from "../codec/tagCodec"
 
 /**
@@ -281,58 +282,61 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
   chess.loadPgn(moveList.join(" "))
   chess.reset()
 
-  const writer = new BitWriter()
+  const customWriter = new BitWriter()
 
-  writer.write(hasMetadata ? 0 : 1, 1)
+  customWriter.write(hasMetadata ? 1 : 0, 2)
 
-  if (hasMetadata && tags.length > 0) {
+  if (hasMetadata) {
     const tagsString = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
     const { bytes, length } = encodeTagsBlock(tagsString)
-    writeVLQ(writer, length)
+    writeVLQ(customWriter, length)
     for (const byte of bytes) {
-      writer.write(byte, 8)
+      customWriter.write(byte, 8)
     }
-  } else {
-    writeVLQ(writer, 0)
   }
 
-  writeVLQ(writer, moveList.length)
+  writeVLQ(customWriter, moveList.length)
 
   for (let i = 0; i < moveList.length; i++) {
     const san = moveList[i]
     const ordered = orderMoves(chess)
 
-    // Use chess.move to play the move and get canonical SAN
-    // This handles the SAN differences between input and library output
     const moveObj = chess.move(san)
     if (!moveObj) {
       throw new Error(`Failed to play move: ${san}`)
     }
     
-    // Find the index of the move in the ordered list
-    // This is O(n) but n is small (number of legal moves at position)
     const index = ordered.findIndex((m) => m.san === moveObj.san)
     
     const bits = Math.ceil(Math.log2(ordered.length))
 
-    writer.write(index, bits)
+    customWriter.write(index, bits)
 
     if (hasMetadata) {
       const postText = postTexts[i] || ""
-      const compressed = postText ? compress(postText) : ""
+      const compressed = postText ? LZString.compressToUTF16(postText) : ""
       const charCodes = new Uint16Array(compressed.length)
       for (let j = 0; j < compressed.length; j++) {
         charCodes[j] = compressed.charCodeAt(j)
       }
       const bytes = new Uint8Array(charCodes.buffer)
-      writeVLQ(writer, bytes.length)
+      writeVLQ(customWriter, bytes.length)
       for (const byte of bytes) {
-        writer.write(byte, 8)
+        customWriter.write(byte, 8)
       }
     }
   }
 
-  return base64urlEncode(writer.toBytes())
+  const customEncoded = base64urlEncode(customWriter.toBytes())
+
+  if (!hasMetadata || customEncoded.length < 50) {
+    return customEncoded
+  }
+
+  const lzCompressed = LZString.compressToEncodedURIComponent(pgn)
+  const lzEncoded = "lz_" + lzCompressed
+
+  return customEncoded.length <= lzEncoded.length ? customEncoded : lzEncoded
 }
 
 export async function encodePGN(pgn: string, options: EncodeOptions = {}): Promise<string> {

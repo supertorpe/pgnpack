@@ -1,17 +1,14 @@
 /**
  * PGN Decoder - Decompresses base64url strings back to PGN format
  * 
- * Inverse of the encoder:
- * 1. Decode base64url to bytes
- * 2. Unpack bytes to bits
- * 3. Read header flag (compact vs full mode)
- * 4. Read and decompress tags (if present)
- * 5. For each move:
- *    a. Reconstruct legal moves using same ordering as encoder
- *    b. Read index and look up the actual move
- *    c. Read and decompress post-text (annotations) if in full mode
- *    d. Reconstruct PGN move notation with move numbers
- * 6. Combine tags and moves into final PGN string
+ * Handles two encoding methods:
+ * 1. Custom encoding (move ordering + tag compression)
+  * 2. lz-string fallback (when it produces shorter result)
+  * 
+  * Header format (2 bits):
+  *   00 = compact (moves only)
+  *   01 = custom encoding with metadata
+  *   10 = lz-string compressed
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -19,7 +16,7 @@ import { BitReader } from "../compression/bitReader"
 import { base64urlDecode } from "../compression/base64url"
 import { orderMoves } from "../chess/moveOrdering"
 import { readVLQ } from "../compression/vlq"
-import { decompress } from "smol-string"
+import LZString from "lz-string"
 import { decodeTagsBlock } from "../codec/tagCodec"
 
 /**
@@ -33,12 +30,43 @@ import { decodeTagsBlock } from "../codec/tagCodec"
  * Core decoding logic - used by both decodePGN and decodePGNWith
  */
 async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
+  if (code.startsWith("lz_")) {
+    const compressed = code.slice(3)
+    return LZString.decompressFromEncodedURIComponent(compressed) || ""
+  }
+
   chess.reset()
   const bytes = base64urlDecode(code)
 
   const reader = new BitReader(bytes)
 
-  const compact = reader.read(1) === 1
+  const header = reader.read(2)
+
+  if (header === 0) {
+    return decodeMoves(reader, chess)
+  }
+
+  if (header === 2) {
+    return decodeLz(reader, chess)
+  }
+
+  return decodeCustom(reader, chess)
+}
+
+async function decodeLz(reader: BitReader, _chess: ChessAdapter): Promise<string> {
+  const bytes: number[] = []
+  while (reader.pos < reader.bits.length) {
+    bytes.push(reader.read(8))
+  }
+  let compressed = ""
+  for (const byte of bytes) {
+    compressed += String.fromCharCode(byte)
+  }
+  return LZString.decompressFromEncodedURIComponent(compressed) || ""
+}
+
+async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<string> {
+  chess.reset()
 
   const blockLength = readVLQ(reader)
   let tagsBlock = ""
@@ -73,7 +101,7 @@ async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
     const move = ordered[index]
 
     let postText = ""
-    if (!compact) {
+    {
       const postLength = readVLQ(reader)
       if (postLength > 0) {
         const bytes = new Uint8Array(postLength)
@@ -85,7 +113,7 @@ async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
         for (let k = 0; k < charCodes.length; k++) {
           compressed += String.fromCharCode(charCodes[k])
         }
-        postText = compressed ? decompress(compressed) || "" : ""
+        postText = compressed ? LZString.decompressFromUTF16(compressed) || "" : ""
       }
     }
 
@@ -93,7 +121,7 @@ async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
 
     let fullMove = moveStr
 
-    if (!compact && postText) {
+    if (postText) {
       fullMove = `${moveStr} ${postText}`
     }
 
@@ -104,9 +132,46 @@ async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
     chess.move(move.san)
   }
 
-  if (!compact && tagsBlock) {
+  if (tagsBlock) {
     return tagsBlock + "\n\n" + moves.join(" ")
   }
+  return moves.join(" ")
+}
+
+async function decodeMoves(reader: BitReader, chess: ChessAdapter): Promise<string> {
+  chess.reset()
+
+  const totalMoves = readVLQ(reader)
+
+  const moves: string[] = []
+
+  let moveNumber = 1
+  let isWhite = true
+
+  for (let i = 0; i < totalMoves; i++) {
+    const ordered = orderMoves(chess)
+
+    if (!ordered.length) break
+
+    const bits = Math.ceil(Math.log2(ordered.length))
+
+    if (reader.pos + bits > reader.bits.length) break
+
+    const index = reader.read(bits)
+
+    if (index >= ordered.length) break
+
+    const move = ordered[index]
+
+    const moveStr = isWhite ? `${moveNumber}. ${move.san}` : move.san
+
+    moves.push(moveStr)
+
+    if (!isWhite) moveNumber++
+    isWhite = !isWhite
+    chess.move(move.san)
+  }
+
   return moves.join(" ")
 }
 

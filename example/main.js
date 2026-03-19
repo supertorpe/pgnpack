@@ -1,6 +1,5 @@
 import { encodePGN, decodePGN } from '../src/index.js'
 import LZString from 'lz-string'
-import { compress, decompress } from 'smol-string'
 
 const pgnInput = document.getElementById('pgn')
 const tagsInput = document.getElementById('tags')
@@ -11,6 +10,7 @@ const errorDiv = document.getElementById('error')
 const encodedDiv = document.getElementById('encoded')
 const decodedDiv = document.getElementById('decoded')
 const statsDiv = document.getElementById('stats')
+const lzStringResultDiv = document.getElementById('lz-string-result')
 
 processBtn.addEventListener('click', async () => {
   resultDiv.style.display = 'none'
@@ -40,13 +40,11 @@ processBtn.addEventListener('click', async () => {
     encodedDiv.textContent = encoded
     decodedDiv.textContent = decoded
 
-    const lzCompressed = LZString.compressToEncodedURIComponent(pgn)
-    const smolCompressed = compress(pgn)
+    const lzBase64 = LZString.compressToEncodedURIComponent(pgn)
 
     const methods = [
       { name: 'pgnpack', size: encoded.length },
-      { name: 'lz-string', size: lzCompressed.length },
-      { name: 'smol-string', size: smolCompressed.length },
+      { name: 'lz-string', size: lzBase64.length },
     ]
     const minSize = Math.min(...methods.map(m => m.size))
 
@@ -63,6 +61,7 @@ processBtn.addEventListener('click', async () => {
       })
     ].join('')
 
+    lzStringResultDiv.textContent = lzBase64
     statsDiv.innerHTML = statsHtml
 
     resultDiv.style.display = 'block'

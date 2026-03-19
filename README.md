@@ -110,7 +110,7 @@ Decodes a compact base64url string back to PGN.
 
 - **RAV (Recursive Annotation Variation) support**: Add support for encoding/decoding PGN files containing RAV (variations indicated by parentheses). Currently, RAV variations are stripped during encoding.
 
-- **Efficient compression for meaningful annotations**: Add more efficient compression for meaningful annotations (i.e. evals, clocks). Currently, annotations are compressed using smol-string, but specialized encoding for structured data like evaluation scores and clock times could improve compression ratios.
+- **Efficient compression for meaningful annotations**: Add more efficient compression for meaningful annotations (i.e. evals, clocks). Currently, annotations are compressed using lz-string, but specialized encoding for structured data like evaluation scores and clock times could improve compression ratios.
 
 ## Third-Party Software
 
@@ -122,8 +122,7 @@ Chess and chess variant rules and operations in TypeScript.
 ### [chess.js](https://github.com/jhlywa/chess.js)
 A JavaScript chess library. Used as a fallback when chessops is not available.
 
-### [smol-string](https://github.com/Senryoku/smol-string)
-Compression for browsers' localStorage. Alternative to lz-string written in Zig.
+### [lz-string](https://github.com/pieroxy/lz-string)
 
 ## License
 
