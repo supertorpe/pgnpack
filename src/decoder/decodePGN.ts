@@ -1,14 +1,11 @@
 /**
  * PGN Decoder - Decompresses base64url strings back to PGN format
  * 
- * Handles two encoding methods:
- * 1. Custom encoding (move ordering + tag/prelude/annotation compression)
- * 2. lz-string fallback (when it produces shorter result)
+ * Uses custom encoding with move ordering and compressed metadata blocks.
  * 
- * Header format (2 bits):
- *   00 = compact (moves only)
- *   01 = custom encoding with metadata
- *   10 = lz-string compressed
+ * Header format (1 bit):
+ *   0 = compact (moves only)
+ *   1 = with metadata (tags, prelude, annotations)
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -23,39 +20,18 @@ import { decodeTagsBlock } from "../codec/tagCodec"
  * Core decoding logic - used by both decodePGN and decodePGNWith
  */
 async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
-  if (code.startsWith("lz_")) {
-    const compressed = code.slice(3)
-    return LZString.decompressFromEncodedURIComponent(compressed) || ""
-  }
-
   chess.reset()
   const bytes = base64urlDecode(code)
 
   const reader = new BitReader(bytes)
 
-  const header = reader.read(2)
+  const hasMetadata = reader.read(1) === 1
 
-  if (header === 0) {
+  if (!hasMetadata) {
     return decodeMoves(reader, chess)
   }
 
-  if (header === 2) {
-    return decodeLz(reader, chess)
-  }
-
   return decodeCustom(reader, chess)
-}
-
-async function decodeLz(reader: BitReader, _chess: ChessAdapter): Promise<string> {
-  const bytes: number[] = []
-  while (reader.pos < reader.bits.length) {
-    bytes.push(reader.read(8))
-  }
-  let compressed = ""
-  for (const byte of bytes) {
-    compressed += String.fromCharCode(byte)
-  }
-  return LZString.decompressFromEncodedURIComponent(compressed) || ""
 }
 
 async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<string> {

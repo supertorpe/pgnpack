@@ -3,18 +3,13 @@
  * 
  * The encoding process:
  * 1. Parse PGN into header (tags), prelude comments, and move text
- * 2. Try both custom encoding and lz-string compression
- * 3. Use the shorter result (with header to indicate method)
+ * 2. Encode using custom bit-level encoding with move ordering
  * 
  * Custom encoding:
  *   a. Generate all legal moves from current position
  *   b. Order them by likelihood (promotions, captures, checks)
  *   c. Write the index of the actual move (using minimal bits)
  *   d. Encode tags, prelude, and annotations as separate compressed blocks
- * 
- * lz-string fallback:
- *   - If lz-string compression produces shorter result than custom encoding,
- *     use it instead with a flag to indicate this in the header.
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -315,39 +310,6 @@ async function findMovesAndPostText(prelude: string, movesSection: string, annot
 }
 
 /**
- * Builds a filtered PGN string from parsed components
- */
-function buildFilteredPgnString(
-  tags: Array<{ name: string; value: string }>,
-  prelude: string[],
-  moveList: string[],
-  postTexts: string[],
-  annotations: boolean
-): string {
-  const tagsStr = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
-  const preludeStr = prelude.join(" ")
-
-  const moveTokens: string[] = []
-  for (let i = 0; i < moveList.length; i++) {
-    const postText = annotations ? (postTexts[i] || "") : ""
-    if (i % 2 === 0) {
-      moveTokens.push(`${Math.floor(i / 2) + 1}. ${moveList[i]}${postText ? " " + postText : ""}`)
-    } else {
-      moveTokens.push(`${moveList[i]}${postText ? " " + postText : ""}`)
-    }
-  }
-
-  let result = tagsStr
-  if (preludeStr) {
-    result += (result ? "\n" : "") + preludeStr
-  }
-  if (moveTokens.length > 0) {
-    result += (result ? "\n" : "") + moveTokens.join(" ")
-  }
-  return result
-}
-
-/**
  * Splits PGN into header tags, prelude comments, and move text
  */
 async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Promise<{ tags: Array<{ name: string; value: string }>; prelude: string[]; moves: Array<{ san: string; postText: string }> }> {
@@ -413,7 +375,7 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
 
   const customWriter = new BitWriter()
 
-  customWriter.write(hasMetadata ? 1 : 0, 2)
+  customWriter.write(hasMetadata ? 1 : 0, 1)
 
   if (hasMetadata) {
     const tagsString = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
@@ -462,15 +424,7 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
 
   const customEncoded = base64urlEncode(customWriter.toBytes())
 
-  if (!hasMetadata || customEncoded.length < 50) {
-    return customEncoded
-  }
-
-  const filteredPgn = buildFilteredPgnString(tags, prelude, moveList, postTexts, options.annotations ?? false)
-  const lzCompressed = LZString.compressToEncodedURIComponent(filteredPgn)
-  const lzEncoded = "lz_" + lzCompressed
-
-  return customEncoded.length <= lzEncoded.length ? customEncoded : lzEncoded
+  return customEncoded
 }
 
 export async function encodePGN(pgn: string, options: EncodeOptions = {}): Promise<string> {

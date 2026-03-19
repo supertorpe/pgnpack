@@ -149,7 +149,7 @@ describe("Compression comparison", () => {
       const lzCompressed = LZString.compressToEncodedURIComponent(pgn)
       const lzChars = lzCompressed.length
 
-      const encoded = await encodePGNWith(chess, pgn, { tags: "*", includeAnnotations: true })
+      const encoded = await encodePGNWith(chess, pgn, { tags: true, annotations: true })
       const encodedChars = encoded.length
 
       const ratio = lzChars / encodedChars
