@@ -2,13 +2,13 @@
  * PGN Decoder - Decompresses base64url strings back to PGN format
  * 
  * Handles two encoding methods:
- * 1. Custom encoding (move ordering + tag compression)
-  * 2. lz-string fallback (when it produces shorter result)
-  * 
-  * Header format (2 bits):
-  *   00 = compact (moves only)
-  *   01 = custom encoding with metadata
-  *   10 = lz-string compressed
+ * 1. Custom encoding (move ordering + tag/prelude/annotation compression)
+ * 2. lz-string fallback (when it produces shorter result)
+ * 
+ * Header format (2 bits):
+ *   00 = compact (moves only)
+ *   01 = custom encoding with metadata
+ *   10 = lz-string compressed
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -19,13 +19,6 @@ import { readVLQ } from "../compression/vlq"
 import LZString from "lz-string"
 import { decodeTagsBlock } from "../codec/tagCodec"
 
-/**
- * Decodes a compact PGN string back to human-readable PGN
- * 
- * Uses auto-detected chess library to reconstruct moves.
- * @param code - Base64url encoded string
- * @returns Human-readable PGN string
- */
 /**
  * Core decoding logic - used by both decodePGN and decodePGNWith
  */
@@ -78,6 +71,33 @@ async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<str
     tagsBlock = decodeTagsBlock(tagBytes, blockLength)
   }
 
+  let preludeBlock = ""
+  if (reader.pos < reader.bits.length) {
+    const preludeLength = readVLQ(reader)
+    if (preludeLength > 0) {
+      const preludeBytes = new Uint8Array(preludeLength)
+      for (let i = 0; i < preludeLength; i++) {
+        preludeBytes[i] = reader.read(8)
+      }
+      const preludeCompressed = new TextDecoder().decode(preludeBytes)
+      preludeBlock = preludeCompressed ? LZString.decompressFromEncodedURIComponent(preludeCompressed) || "" : ""
+    }
+  }
+
+  let annotationsBlock: string[] = []
+  if (reader.pos < reader.bits.length) {
+    const annotationsLength = readVLQ(reader)
+    if (annotationsLength > 0) {
+      const annotationsBytes = new Uint8Array(annotationsLength)
+      for (let i = 0; i < annotationsLength; i++) {
+        annotationsBytes[i] = reader.read(8)
+      }
+      const annotationsCompressed = new TextDecoder().decode(annotationsBytes)
+      const annotationsStr = annotationsCompressed ? LZString.decompressFromEncodedURIComponent(annotationsCompressed) || "" : ""
+      annotationsBlock = annotationsStr ? annotationsStr.split("\x00") : []
+    }
+  }
+
   const totalMoves = readVLQ(reader)
 
   const moves: string[] = []
@@ -100,27 +120,11 @@ async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<str
 
     const move = ordered[index]
 
-    let postText = ""
-    {
-      const postLength = readVLQ(reader)
-      if (postLength > 0) {
-        const bytes = new Uint8Array(postLength)
-        for (let j = 0; j < postLength; j++) {
-          bytes[j] = reader.read(8)
-        }
-        const charCodes = new Uint16Array(bytes.buffer)
-        let compressed = ""
-        for (let k = 0; k < charCodes.length; k++) {
-          compressed += String.fromCharCode(charCodes[k])
-        }
-        postText = compressed ? LZString.decompressFromUTF16(compressed) || "" : ""
-      }
-    }
-
     const moveStr = isWhite ? `${moveNumber}. ${move.san}` : move.san
 
     let fullMove = moveStr
 
+    const postText = annotationsBlock[i] || ""
     if (postText) {
       fullMove = `${moveStr} ${postText}`
     }
@@ -132,10 +136,14 @@ async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<str
     chess.move(move.san)
   }
 
-  if (tagsBlock) {
-    return tagsBlock + "\n\n" + moves.join(" ")
+  let result = tagsBlock
+  if (preludeBlock) {
+    result += (result ? "\n\n" : "") + preludeBlock
   }
-  return moves.join(" ")
+  if (moves.length > 0) {
+    result += (result ? "\n\n" : "") + moves.join(" ")
+  }
+  return result
 }
 
 async function decodeMoves(reader: BitReader, chess: ChessAdapter): Promise<string> {

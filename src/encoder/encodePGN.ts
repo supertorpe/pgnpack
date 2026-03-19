@@ -2,7 +2,7 @@
  * PGN Encoder - Compresses PGN chess games into compact base64url strings
  * 
  * The encoding process:
- * 1. Parse PGN into header (tags) and move text
+ * 1. Parse PGN into header (tags), prelude comments, and move text
  * 2. Try both custom encoding and lz-string compression
  * 3. Use the shorter result (with header to indicate method)
  * 
@@ -10,7 +10,7 @@
  *   a. Generate all legal moves from current position
  *   b. Order them by likelihood (promotions, captures, checks)
  *   c. Write the index of the actual move (using minimal bits)
- *   d. Compress tags and post-move text
+ *   d. Encode tags, prelude, and annotations as separate compressed blocks
  * 
  * lz-string fallback:
  *   - If lz-string compression produces shorter result than custom encoding,
@@ -30,16 +30,14 @@ import { encodeTagsBlock } from "../codec/tagCodec"
  */
 export interface EncodeOptions {
   tags?: boolean | string[]  // Which tag pairs to include: true for all, false for none (by default), or array of tag names
-  annotations?: boolean // Whether to include NAGs and comments
+  annotations?: boolean // Whether to include NAGs, comments, and prelude
 }
 
 /**
  * Parses and filters PGN tag pairs based on options
  * 
- * Used to selectively include header tags in the encoded output.
- * Returns array of {name, value} objects.
  * @param tagsBlock - Raw tag section from PGN
- * @param tagFilter - "*" for all, or array of tag names to include
+ * @param tagFilter - true for all, false for none, or array of tag names
  * @returns Array of parsed tag objects
  */
 function parseAndFilterTags(tagsBlock: string, tagFilter: boolean | string[] | undefined): Array<{ name: string; value: string }> {
@@ -108,9 +106,6 @@ function removeAnnotations(pgn: string): string {
 /**
  * Removes Recursive Annotation Variations (RAV) from PGN
  * 
- * RAVs are alternative move sequences enclosed in parentheses.
- * This strips everything inside parentheses, keeping only the main line.
- * Uses a depth counter to handle nested parentheses correctly.
  * @param pgn - Raw PGN string
  * @returns PGN with variations removed
  */
@@ -130,25 +125,138 @@ function removeRav(pgn: string): string {
 }
 
 /**
+ * Extracts prelude comments from PGN (comments between tags and first move)
+ * 
+ * @param text - Text between tags and moves
+ * @returns Array of prelude comment strings
+ */
+function extractPreludeComments(text: string): string[] {
+  const comments: string[] = []
+  let inBlockComment = false
+  let currentComment = ""
+  let i = 0
+
+  while (i < text.length) {
+    const ch = text[i]
+
+    if (ch === "{") {
+      if (inBlockComment) {
+        currentComment += ch
+      } else {
+        inBlockComment = true
+        currentComment = "{"
+      }
+    } else if (ch === "}") {
+      if (inBlockComment) {
+        currentComment += ch
+        comments.push(currentComment)
+        currentComment = ""
+        inBlockComment = false
+      } else {
+        currentComment += ch
+      }
+    } else if (ch === ";") {
+      if (!inBlockComment) {
+        const lineEnd = text.indexOf("\n", i)
+        const endIndex = lineEnd === -1 ? text.length : lineEnd
+        const lineComment = text.slice(i, endIndex).trim()
+        if (lineComment) {
+          comments.push(lineComment)
+        }
+        i = endIndex
+        continue
+      } else {
+        currentComment += ch
+      }
+    } else if (inBlockComment) {
+      currentComment += ch
+    }
+    i++
+  }
+
+  return comments
+}
+
+/**
+ * Extracts annotations (NAGs, comments) following a move
+ * 
+ * @param text - Text after the move
+ * @returns Combined annotation string
+ */
+function extractPostMoveAnnotations(text: string): string {
+  let result = ""
+
+  let inBlockComment = false
+  let i = 0
+  const endIndex = text.length
+
+  while (i < endIndex) {
+    const ch = text[i]
+
+    if (ch === "{") {
+      if (!inBlockComment) {
+        inBlockComment = true
+        let commentEnd = text.indexOf("}", i)
+        if (commentEnd === -1) commentEnd = endIndex
+        const comment = text.slice(i, commentEnd + 1)
+        if (result) result += " "
+        result += comment
+        i = commentEnd + 1
+        continue
+      }
+    } else if (ch === "}") {
+      if (inBlockComment) {
+        inBlockComment = false
+      }
+    } else if (ch === ";") {
+      if (!inBlockComment) {
+        const lineEnd = text.indexOf("\n", i)
+        const end = lineEnd === -1 ? endIndex : lineEnd
+        const lineComment = text.slice(i, end).trim()
+        if (lineComment) {
+          if (result) result += " "
+          result += lineComment
+        }
+        i = end
+        continue
+      }
+    } else if (ch === "$" && !inBlockComment) {
+      const match = text.slice(i).match(/^\$\d+/)
+      if (match) {
+        if (result) result += " "
+        result += match[0]
+        i += match[0].length
+        continue
+      }
+    }
+
+    if (!inBlockComment && !/\s/.test(ch) && ch !== "$" && ch !== "{" && ch !== "}" && ch !== ";") {
+      break
+    }
+    i++
+  }
+
+  return result.trim()
+}
+
+/**
  * Extracts moves and optional post-move text (annotations) from PGN
  * 
- * First attempts to use the chess library's built-in PGN parser.
- * If that fails (e.g., due to invalid PGN), falls back to regex extraction.
- * 
- * Post-text includes NAGs (e.g., "$1", "$2") and block comments that follow a move.
- * @param pgn - PGN string to parse
+ * @param prelude - Prelude section (before first move)
+ * @param movesSection - Section containing moves
  * @param annotations - Whether to extract annotations
- * @returns Array of {san, postText} objects for each move
+ * @returns Object with prelude comments and moves with annotations
  */
-async function findMovesAndPostText(pgn: string, annotations: boolean = false): Promise<Array<{ san: string; postText: string }>> {
+async function findMovesAndPostText(prelude: string, movesSection: string, annotations: boolean = false): Promise<{ prelude: string[]; moves: Array<{ san: string; postText: string }> }> {
   return withChess(async (chess) => {
+    const preludeComments = annotations ? extractPreludeComments(prelude) : []
     const result: Array<{ san: string; postText: string }> = []
 
-    const pgnToParse = annotations ? pgn : removeAnnotations(pgn)
+    const pgnToParse = annotations ? movesSection : removeAnnotations(movesSection)
 
     let moves: ReturnType<typeof chess.history> = []
     try {
-      const pgnWithoutAnnotations = removeRav(removeAnnotations(pgn))
+      const pgnWithoutAnnotations = removeRav(removeAnnotations(movesSection))
       chess.loadPgn(pgnWithoutAnnotations)
       moves = chess.history()
     } catch {
@@ -156,8 +264,7 @@ async function findMovesAndPostText(pgn: string, annotations: boolean = false): 
     }
 
     if (moves.length === 0) {
-      // Fallback: extract moves using regex when PGN parsing fails
-      const fallbackRegex = /(?:(\d+)\.\s*)?([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:\=[KQRBNP])?[+#]*|0-0-0[+#]*|0-0[+#]*|O-O-O[+#]*|O-O[+#]*)\s*/g
+      const fallbackRegex = /(?:(\d+)\.\.*\s*)([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:\=[KQRBNP])?[+#]*|0-0-0[+#]*|0-0[+#]*|O-O-O[+#]*|O-O[+#]*|[a-h][1-8](?:\=[KQRBNP])?[+#]*)\s*/g
       let match
       while ((match = fallbackRegex.exec(pgnToParse)) !== null) {
         const san = match[2]
@@ -171,14 +278,13 @@ async function findMovesAndPostText(pgn: string, annotations: boolean = false): 
           continue
         }
       }
-      return result
+      return { prelude: preludeComments, moves: result }
     }
 
     chess.reset()
 
-    // Find all move positions in the PGN text to extract post-move annotations
     const moveMatches: { index: number; end: number }[] = []
-    const moveRegex = /(?:(\d+)\.\s*)?([KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:\=[KQRBNP])?[+#]*|0-0-0[+#]*|0-0[+#]*|O-O-O[+#]*|O-O[+#]*)\s*/g
+    const moveRegex = /(?:(\d+)\.\.*\s*)([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:\=[KQRBNP])?[+#]*|0-0-0[+#]*|0-0[+#]*|O-O-O[+#]*|O-O[+#]*|[a-h][1-8](?:\=[KQRBNP])?[+#]*)\s*|([KQRBN][a-h]?[1-8]?x?[a-h][1-8](?:\=[KQRBNP])?[+#]*|0-0-0[+#]*|0-0[+#]*|O-O-O[+#]*|O-O[+#]*|[a-h][1-8](?:\=[KQRBNP])?[+#]*)\s*/g
     let match
     while ((match = moveRegex.exec(pgnToParse)) !== null) {
       moveMatches.push({ index: match.index, end: match.index + match[0].length })
@@ -186,31 +292,17 @@ async function findMovesAndPostText(pgn: string, annotations: boolean = false): 
 
     let moveIndex = 0
 
-    // Match parsed moves with their positions in the original PGN
     for (let i = 0; i < moveMatches.length && moveIndex < moves.length; i++) {
       const currentMove = moveMatches[i]
-
       const move = moves[moveIndex] as { san: string } | undefined
+
       if (move) {
         let postText = ""
         if (annotations) {
           const nextMove = moveMatches[i + 1]
           const searchEnd = nextMove ? nextMove.index : pgnToParse.length
-
           const remainingText = pgnToParse.slice(currentMove.end, searchEnd)
-
-          // Extract NAGs (Numeric Annotation Glyphs like $1, $2)
-          const nagMatches = remainingText.match(/(\$\d+)/g)
-          if (nagMatches) {
-            postText = nagMatches.join(" ")
-          }
-
-          // Extract block comments following the move
-          const annotationMatch = remainingText.match(/(\{[^}]*\})/)
-          if (annotationMatch) {
-            if (postText) postText += " "
-            postText += annotationMatch[1]
-          }
+          postText = extractPostMoveAnnotations(remainingText)
         }
 
         result.push({ san: move.san, postText })
@@ -218,28 +310,22 @@ async function findMovesAndPostText(pgn: string, annotations: boolean = false): 
       }
     }
 
-    return result
+    return { prelude: preludeComments, moves: result }
   })
 }
 
 /**
  * Builds a filtered PGN string from parsed components
- * 
- * Used for LZ-String comparison - reconstructs PGN from the same
- * filtered/parsed data that custom encoding uses.
- * @param tags - Filtered tag array
- * @param moveList - Array of SAN moves
- * @param postTexts - Array of post-move annotations
- * @param annotations - Whether to include annotations
- * @returns Reconstructed PGN string
  */
 function buildFilteredPgnString(
   tags: Array<{ name: string; value: string }>,
+  prelude: string[],
   moveList: string[],
   postTexts: string[],
   annotations: boolean
 ): string {
   const tagsStr = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
+  const preludeStr = prelude.join(" ")
 
   const moveTokens: string[] = []
   for (let i = 0; i < moveList.length; i++) {
@@ -251,23 +337,20 @@ function buildFilteredPgnString(
     }
   }
 
-  return tagsStr ? tagsStr + "\n" + moveTokens.join(" ") : moveTokens.join(" ")
+  let result = tagsStr
+  if (preludeStr) {
+    result += (result ? "\n" : "") + preludeStr
+  }
+  if (moveTokens.length > 0) {
+    result += (result ? "\n" : "") + moveTokens.join(" ")
+  }
+  return result
 }
 
 /**
- * Splits PGN into header tags and move text
- * 
- * Separates the PGN file into:
- * - Filtered tag block (based on options.tags)
- * - Move data (including optional annotations)
- * 
- * Finds the boundary between header and moves by looking for the first
- * non-tag line.
- * @param pgn - Full PGN string
- * @param options - Encoding options
- * @returns Separated tags and moves
+ * Splits PGN into header tags, prelude comments, and move text
  */
-async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Promise<{ tags: Array<{ name: string; value: string }>; moves: Array<{ san: string; postText: string }> }> {
+async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Promise<{ tags: Array<{ name: string; value: string }>; prelude: string[]; moves: Array<{ san: string; postText: string }> }> {
   const lines = pgn.split("\n")
 
   let headerEndIndex = 0
@@ -284,10 +367,23 @@ async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Prom
   const rawTagsBlock = lines.slice(0, headerEndIndex).join("\n")
   const tags = parseAndFilterTags(rawTagsBlock, options.tags)
 
-  const movesSection = headerEndIndex > 0 ? lines.slice(headerEndIndex).join(" ") : pgn
-  const moveData = await findMovesAndPostText(movesSection, options.annotations ?? false)
+  const preludeSection = lines.slice(headerEndIndex).join(" ")
 
-  return { tags, moves: moveData }
+  let prelude = ""
+  let movesSection = preludeSection
+
+  const firstMoveMatch = preludeSection.match(/(\d+\.+\s*(?:[KQRBNP]?[a-h]?[1-8]?x?[a-h][1-8](?:\=[KQRBNP])?[+#]*|0-0-0[+#]*|0-0[+#]*|O-O-O[+#]*|O-O[+#]*)|(?:^|\s)(?:[KQRBNP][a-h]?[1-8]?x?[a-h][1-8](?:\=[KQRBNP])?[+#]*|0-0-0[+#]*|0-0[+#]*|O-O-O[+#]*|O-O[+#]*)\s)/)
+  if (firstMoveMatch) {
+    const firstMoveIndex = firstMoveMatch.index !== undefined ? firstMoveMatch.index : preludeSection.indexOf(firstMoveMatch[0])
+    if (firstMoveIndex !== -1) {
+      prelude = preludeSection.slice(0, firstMoveIndex)
+      movesSection = preludeSection.slice(firstMoveIndex)
+    }
+  }
+
+  const moveData = await findMovesAndPostText(prelude, movesSection, options.annotations ?? false)
+
+  return { tags, prelude: moveData.prelude, moves: moveData.moves }
 }
 
 /**
@@ -304,10 +400,11 @@ function getMetadataFlags(options: EncodeOptions): { hasTags: boolean; hasAnnota
  * Core encoding logic - used by both encodePGN and encodePGNWith
  */
 async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptions): Promise<string> {
-  const { hasMetadata } = getMetadataFlags(options)
+  const { hasMetadata, hasAnnotations } = getMetadataFlags(options)
 
   const parts = await splitPgnIntoParts(pgn, options)
   const tags = parts.tags
+  const prelude = parts.prelude
   const moveList = parts.moves.map((m) => m.san)
   const postTexts = parts.moves.map((m) => m.postText)
 
@@ -325,6 +422,24 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
     for (const byte of bytes) {
       customWriter.write(byte, 8)
     }
+
+    if (hasAnnotations) {
+      const preludeStr = prelude.join("\n")
+      const preludeCompressed = preludeStr ? LZString.compressToEncodedURIComponent(preludeStr) : ""
+      const preludeBytes = new TextEncoder().encode(preludeCompressed)
+      writeVLQ(customWriter, preludeBytes.length)
+      for (const byte of preludeBytes) {
+        customWriter.write(byte, 8)
+      }
+
+      const annotationsStr = postTexts.join("\x00")
+      const annotationsCompressed = annotationsStr ? LZString.compressToEncodedURIComponent(annotationsStr) : ""
+      const annotationsBytes = new TextEncoder().encode(annotationsCompressed)
+      writeVLQ(customWriter, annotationsBytes.length)
+      for (const byte of annotationsBytes) {
+        customWriter.write(byte, 8)
+      }
+    }
   }
 
   writeVLQ(customWriter, moveList.length)
@@ -337,26 +452,12 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
     if (!moveObj) {
       throw new Error(`Failed to play move: ${san}`)
     }
-    
+
     const index = ordered.findIndex((m) => m.san === moveObj.san)
-    
+
     const bits = Math.ceil(Math.log2(ordered.length))
 
     customWriter.write(index, bits)
-
-    if (hasMetadata) {
-      const postText = postTexts[i] || ""
-      const compressed = postText ? LZString.compressToUTF16(postText) : ""
-      const charCodes = new Uint16Array(compressed.length)
-      for (let j = 0; j < compressed.length; j++) {
-        charCodes[j] = compressed.charCodeAt(j)
-      }
-      const bytes = new Uint8Array(charCodes.buffer)
-      writeVLQ(customWriter, bytes.length)
-      for (const byte of bytes) {
-        customWriter.write(byte, 8)
-      }
-    }
   }
 
   const customEncoded = base64urlEncode(customWriter.toBytes())
@@ -365,7 +466,7 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
     return customEncoded
   }
 
-  const filteredPgn = buildFilteredPgnString(tags, moveList, postTexts, options.annotations ?? false)
+  const filteredPgn = buildFilteredPgnString(tags, prelude, moveList, postTexts, options.annotations ?? false)
   const lzCompressed = LZString.compressToEncodedURIComponent(filteredPgn)
   const lzEncoded = "lz_" + lzCompressed
 
