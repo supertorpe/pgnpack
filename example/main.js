@@ -1,4 +1,6 @@
 import { encodePGN, decodePGN } from '../src/index.js'
+import LZString from 'lz-string'
+import { compress, decompress } from 'smol-string'
 
 const pgnInput = document.getElementById('pgn')
 const tagsInput = document.getElementById('tags')
@@ -37,7 +39,31 @@ processBtn.addEventListener('click', async () => {
 
     encodedDiv.textContent = encoded
     decodedDiv.textContent = decoded
-    statsDiv.textContent = `Original: ${pgn.length} chars | Encoded: ${encoded.length} chars | Ratio: ${(encoded.length / pgn.length * 100).toFixed(1)}%`
+
+    const lzCompressed = LZString.compressToEncodedURIComponent(pgn)
+    const smolCompressed = compress(pgn)
+
+    const methods = [
+      { name: 'pgnpack', size: encoded.length },
+      { name: 'lz-string', size: lzCompressed.length },
+      { name: 'smol-string', size: smolCompressed.length },
+    ]
+    const minSize = Math.min(...methods.map(m => m.size))
+
+    const statsHtml = [
+      '<tr><th>Method</th><th>Size</th><th>Ratio</th></tr>',
+      ...methods.map(m => {
+        const ratio = (m.size / pgn.length * 100).toFixed(1)
+        const isWinner = m.size === minSize
+        return `<tr>
+          <td class="${isWinner ? 'winner' : ''}">${m.name}${isWinner ? ' (best)' : ''}</td>
+          <td class="${isWinner ? 'winner' : ''}">${m.size} chars</td>
+          <td class="${isWinner ? 'winner' : ''}">${ratio}%</td>
+        </tr>`
+      })
+    ].join('')
+
+    statsDiv.innerHTML = statsHtml
 
     resultDiv.style.display = 'block'
   } catch (err) {

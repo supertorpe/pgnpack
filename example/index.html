@@ -83,6 +83,26 @@
       border-radius: 4px;
       min-height: 3rem;
     }
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .stats-table th, .stats-table td {
+      text-align: left;
+      padding: 0.5rem;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .stats-table th {
+      font-weight: 500;
+      color: #666;
+    }
+    .stats-table td {
+      font-family: monospace;
+    }
+    .stats-table .winner {
+      color: #16a34a;
+      font-weight: 600;
+    }
     .error {
       color: #dc2626;
       background: #fef2f2;
@@ -115,7 +135,7 @@
   
   <button id="process">Encode & Decode</button>
   
-  <div class="result" id="result" style="display: none;">
+    <div class="result" id="result" style="display: none;">
     <div class="result-section">
       <h3>Encoded</h3>
       <div class="result-content" id="encoded"></div>
@@ -125,8 +145,10 @@
       <div class="result-content" id="decoded"></div>
     </div>
     <div class="result-section">
-      <h3>Stats</h3>
-      <div class="result-content" id="stats"></div>
+      <h3>Compression Comparison</h3>
+      <div class="result-content">
+        <table class="stats-table" id="stats"></table>
+      </div>
     </div>
   </div>
   
