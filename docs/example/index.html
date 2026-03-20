@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pgnpack Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-weight: 500;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    textarea {
+      min-height: 200px;
+      resize: vertical;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+    button:disabled {
+      background: #93c5fd;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 1.5rem;
+    }
+    .result-section {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .result-section h3 {
+      margin-top: 0;
+      font-size: 0.875rem;
+      color: #666;
+      text-transform: uppercase;
+    }
+    .result-content {
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 0.875rem;
+      background: #f9f9f9;
+      padding: 0.5rem;
+      border-radius: 4px;
+      min-height: 3rem;
+    }
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .stats-table th, .stats-table td {
+      text-align: left;
+      padding: 0.5rem;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .stats-table th {
+      font-weight: 500;
+      color: #666;
+    }
+    .stats-table td {
+      font-family: monospace;
+    }
+    .stats-table .winner {
+      color: #16a34a;
+      font-weight: 600;
+    }
+    .error {
+      color: #dc2626;
+      background: #fef2f2;
+      padding: 1rem;
+      border-radius: 4px;
+    }
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+  </style>
+  <script type="module" crossorigin src="/assets/index-K_Pwskhm.js"></script>
+</head>
+<body>
+  <h1>pgnpack Demo</h1>
+  
+  <div class="form-group">
+    <label for="pgn">PGN</label>
+    <textarea id="pgn" placeholder="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6"></textarea>
+  </div>
+  
+  <div class="form-group">
+    <label for="tags">Tags (comma separated)</label>
+    <input type="text" id="tags" placeholder="White, Black, Result">
+  </div>
+  
+  <div class="form-group checkbox-group">
+    <input type="checkbox" id="allTags">
+    <label for="allTags" style="display: inline; margin-bottom: 0;">Include All Tags</label>
+  </div>
+  
+  <div class="form-group checkbox-group">
+    <input type="checkbox" id="annotations">
+    <label for="annotations" style="display: inline; margin-bottom: 0;">Annotations</label>
+  </div>
+  
+  <button id="process">Encode & Decode</button>
+  
+    <div class="result" id="result" style="display: none;">
+    <div class="result-section">
+      <h3>Encoded</h3>
+      <div class="result-content" id="encoded"></div>
+    </div>
+    <div class="result-section">
+      <h3>Decoded</h3>
+      <textarea id="decoded" readonly></textarea>
+    </div>
+    <div class="result-section" id="lz-on-decoded-section">
+      <h3>lz-string on Decoded</h3>
+      <div class="result-content" id="lz-on-decoded"></div>
+      <div style="margin-top: 0.5rem; font-size: 0.75rem; color: #666;">
+        <strong>Roundtrip:</strong> <span id="lz-on-decoded-roundtrip"></span>
+      </div>
+    </div>
+    <div class="result-section">
+      <h3>Compression Comparison</h3>
+      <div class="result-content">
+        <table class="stats-table" id="stats"></table>
+      </div>
+      <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #666;">
+        <strong>Original:</strong> <span id="original-size"></span>
+      </div>
+    </div>
+    </div>
+  </div>
+  
+  <div class="error" id="error" style="display: none;"></div>
+
+</body>
+</html>
