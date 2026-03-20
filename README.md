@@ -13,6 +13,10 @@ Ultra-compact PGN compression into Base64URL strings using bit-level encoding an
 - TypeScript support
 - **Dual chess library support**: Works with either chess.js or chessops
 
+## Demo
+
+Try it live: [pgnpack example](https://supertorpe.github.io/pgnpack/example/)
+
 ## Install
 
 ```bash
