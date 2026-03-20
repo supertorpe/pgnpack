@@ -1,6 +1,6 @@
 {
   "name": "pgnpack",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Ultra-compact PGN compression into Base64URL strings using bit-level encoding and optimized move ordering",
   "keywords": [
     "chess",
@@ -44,7 +44,9 @@
     "test": "vitest",
     "lint": "eslint src",
     "docs": "typedoc",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "generate:fixtures": "tsx scripts/generateFixtures.ts",
+    "detect:min-version": "tsx scripts/detectMinVersion.ts"
   },
   "dependencies": {
     "lz-string": "^1.5.0"
@@ -69,6 +71,7 @@
     "eslint": "^10.0.3",
     "globals": "^17.4.0",
     "tsup": "^8.5.1",
+    "tsx": "^4.19.0",
     "typedoc": "^0.28.17",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.1",

@@ -19,6 +19,7 @@ import { orderMoves } from "../chess/moveOrdering"
 import { writeVLQ } from "../compression/vlq"
 import LZString from "lz-string"
 import { encodeTagsBlock } from "../codec/tagCodec"
+import { CURRENT_VERSION } from "../constants"
 
 /**
  * Options for encoding PGN
@@ -374,7 +375,7 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
 
   const customWriter = new BitWriter()
 
-  // Write 2-bit header: hasTags (bit 1), hasAnnotations (bit 2)
+  writeVLQ(customWriter, CURRENT_VERSION)
   customWriter.write(hasTags ? 1 : 0, 1)
   customWriter.write(hasAnnotations ? 1 : 0, 1)
 

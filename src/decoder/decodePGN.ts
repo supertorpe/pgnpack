@@ -3,7 +3,8 @@
  *
  * Uses custom encoding with move ordering and compressed metadata blocks.
  *
- * Header format (2 bits):
+ * Header format:
+ *   Version (VLQ) | Flags (2 bits)
  *   Bit 1: hasTags
  *   Bit 2: hasAnnotations
  */
@@ -15,6 +16,7 @@ import { orderMoves } from "../chess/moveOrdering"
 import { readVLQ } from "../compression/vlq"
 import LZString from "lz-string"
 import { decodeTagsBlock } from "../codec/tagCodec"
+import { CURRENT_VERSION, MIN_COMPATIBLE_VERSION } from "../constants"
 
 /**
  * Core decoding logic - used by both decodePGN and decodePGNWith
@@ -24,6 +26,14 @@ async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
   const bytes = base64urlDecode(code)
 
   const reader = new BitReader(bytes)
+
+  const version = readVLQ(reader)
+  if (version < MIN_COMPATIBLE_VERSION || version > CURRENT_VERSION) {
+    throw new Error(
+      `Incompatible format version: ${version}. ` +
+      `Supported versions: ${MIN_COMPATIBLE_VERSION} to ${CURRENT_VERSION}.`
+    )
+  }
 
   const hasTags = reader.read(1) === 1
   const hasAnnotations = reader.read(1) === 1

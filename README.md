@@ -114,6 +114,10 @@ Decodes a compact base64url string back to PGN.
 
 - **Efficient compression for meaningful annotations**: Add more efficient compression for meaningful annotations (i.e. evals, clocks). Currently, annotations are compressed using lz-string, but specialized encoding for structured data like evaluation scores and clock times could improve compression ratios.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions on setting up the development environment, testing, and the versioning workflow.
+
 ## Third-Party Software
 
 pgnpack uses the following third-party libraries:

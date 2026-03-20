@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest"
-import { encodePGN, decodePGN, createChessJsAdapter, createChessopsAdapter, encodePGNWith, decodePGNWith } from "../src"
+import { encodePGN, decodePGN, createChessJsAdapter, createChessopsAdapter, encodePGNWith, decodePGNWith, CURRENT_VERSION, MIN_COMPATIBLE_VERSION } from "../src"
 
 describe("PGN encode/decode", () => {
   const libraries = [
@@ -134,6 +134,36 @@ describe("PGN encode/decode", () => {
         expect(decoded).not.toContain("{good move}")
         expect(decoded).toBe("1. e4 e5 2. d4")
       })
+
+      it("throws error for incompatible future version", async () => {
+        const encoded = await encodePGNWith(chess, "1. e4 e5")
+        const futureVersion = CURRENT_VERSION + 1
+        const bytes = Buffer.from(encoded, "base64url")
+        const modified = Buffer.concat([Buffer.from([futureVersion]), bytes.slice(1)])
+        const badEncoded = modified.toString("base64url")
+
+        await expect(decodePGNWith(chess, badEncoded)).rejects.toThrow(
+          /Incompatible format version/
+        )
+      })
     })
   }
+})
+
+describe("Version compatibility", () => {
+  it("throws error for version below MIN_COMPATIBLE_VERSION", async () => {
+    const chess = await createChessopsAdapter()
+    const encoded = await encodePGNWith(chess, "1. e4 e5")
+
+    const incompatibleVersion = MIN_COMPATIBLE_VERSION - 1
+    if (incompatibleVersion > 0) {
+      const bytes = Buffer.from(encoded, "base64url")
+      const modified = Buffer.concat([Buffer.from([incompatibleVersion]), bytes.slice(1)])
+      const badEncoded = modified.toString("base64url")
+
+      await expect(decodePGNWith(chess, badEncoded)).rejects.toThrow(
+        /Incompatible format version/
+      )
+    }
+  })
 })
