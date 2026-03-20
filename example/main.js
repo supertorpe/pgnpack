@@ -72,6 +72,7 @@ processBtn.addEventListener('click', async () => {
     statsDiv.innerHTML = statsHtml
 
     document.getElementById('original-size').textContent = `${pgn.length} chars`
+    document.getElementById('decoded-size').textContent = `${decoded.length} chars`
 
     resultDiv.style.display = 'block'
   } catch (err) {
