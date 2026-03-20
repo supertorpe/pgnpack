@@ -101,6 +101,14 @@ describe("PGN encode/decode", () => {
         expect(decoded).toContain("[White")
         expect(decoded).toContain("[Black")
         expect(decoded).toContain("[Result")
+        expect(decoded).toBe(`[Event "Test Tournament"]
+[Site "London"]
+[Date "2024.01.01"]
+[White "Player A"]
+[Black "Player B"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6`)
       })
 
       it("encodes NAGs and annotations with annotations", async () => {

@@ -1,11 +1,11 @@
 /**
  * PGN Decoder - Decompresses base64url strings back to PGN format
- * 
+ *
  * Uses custom encoding with move ordering and compressed metadata blocks.
- * 
- * Header format (1 bit):
- *   0 = compact (moves only)
- *   1 = with metadata (tags, prelude, annotations)
+ *
+ * Header format (2 bits):
+ *   Bit 1: hasTags
+ *   Bit 2: hasAnnotations
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -25,30 +25,33 @@ async function _decodePGN(chess: ChessAdapter, code: string): Promise<string> {
 
   const reader = new BitReader(bytes)
 
-  const hasMetadata = reader.read(1) === 1
+  const hasTags = reader.read(1) === 1
+  const hasAnnotations = reader.read(1) === 1
 
-  if (!hasMetadata) {
+  if (!hasTags && !hasAnnotations) {
     return decodeMoves(reader, chess)
   }
 
-  return decodeCustom(reader, chess)
+  return decodeCustom(reader, chess, hasTags, hasAnnotations)
 }
 
-async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<string> {
+async function decodeCustom(reader: BitReader, chess: ChessAdapter, hasTags: boolean, hasAnnotations: boolean): Promise<string> {
   chess.reset()
 
-  const blockLength = readVLQ(reader)
   let tagsBlock = ""
-  if (blockLength > 0) {
-    const tagBytes = new Uint8Array(blockLength)
-    for (let i = 0; i < blockLength; i++) {
-      tagBytes[i] = reader.read(8)
+  if (hasTags) {
+    const blockLength = readVLQ(reader)
+    if (blockLength > 0) {
+      const tagBytes = new Uint8Array(blockLength)
+      for (let i = 0; i < blockLength; i++) {
+        tagBytes[i] = reader.read(8)
+      }
+      tagsBlock = decodeTagsBlock(tagBytes, blockLength)
     }
-    tagsBlock = decodeTagsBlock(tagBytes, blockLength)
   }
 
   let preludeBlock = ""
-  if (reader.pos < reader.bits.length) {
+  if (hasAnnotations) {
     const preludeLength = readVLQ(reader)
     if (preludeLength > 0) {
       const preludeBytes = new Uint8Array(preludeLength)
@@ -61,7 +64,7 @@ async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<str
   }
 
   let annotationsBlock: string[] = []
-  if (reader.pos < reader.bits.length) {
+  if (hasAnnotations) {
     const annotationsLength = readVLQ(reader)
     if (annotationsLength > 0) {
       const annotationsBytes = new Uint8Array(annotationsLength)
@@ -112,7 +115,7 @@ async function decodeCustom(reader: BitReader, chess: ChessAdapter): Promise<str
     chess.move(move.san)
   }
 
-  let result = tagsBlock
+  let result = tagsBlock.trimEnd()
   if (preludeBlock) {
     result += (result ? "\n\n" : "") + preludeBlock
   }

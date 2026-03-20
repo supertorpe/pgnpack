@@ -1,5 +1,7 @@
 # pgnpack
 
+> **Warning:** This software is in early development. The encoding algorithm may change and break compatibility. Wait for version 1.0.0 to stabilize.
+
 Ultra-compact PGN compression into Base64URL strings using bit-level encoding and optimized move ordering.
 
 ## Features

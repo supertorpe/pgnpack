@@ -351,18 +351,17 @@ async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Prom
 /**
  * Extracts metadata flags from encoding options
  */
-function getMetadataFlags(options: EncodeOptions): { hasTags: boolean; hasAnnotations: boolean; hasMetadata: boolean } {
+function getMetadataFlags(options: EncodeOptions): { hasTags: boolean; hasAnnotations: boolean } {
   const hasTags = Boolean(options.tags && (options.tags === true || (Array.isArray(options.tags) && options.tags.length > 0)))
   const hasAnnotations = options.annotations ?? false
-  const hasMetadata = hasTags || hasAnnotations
-  return { hasTags, hasAnnotations, hasMetadata }
+  return { hasTags, hasAnnotations }
 }
 
 /**
  * Core encoding logic - used by both encodePGN and encodePGNWith
  */
 async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptions): Promise<string> {
-  const { hasMetadata, hasAnnotations } = getMetadataFlags(options)
+  const { hasTags, hasAnnotations } = getMetadataFlags(options)
 
   const parts = await splitPgnIntoParts(pgn, options)
   const tags = parts.tags
@@ -375,32 +374,34 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
 
   const customWriter = new BitWriter()
 
-  customWriter.write(hasMetadata ? 1 : 0, 1)
+  // Write 2-bit header: hasTags (bit 1), hasAnnotations (bit 2)
+  customWriter.write(hasTags ? 1 : 0, 1)
+  customWriter.write(hasAnnotations ? 1 : 0, 1)
 
-  if (hasMetadata) {
+  if (hasTags) {
     const tagsString = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
     const { bytes, length } = encodeTagsBlock(tagsString)
     writeVLQ(customWriter, length)
     for (const byte of bytes) {
       customWriter.write(byte, 8)
     }
+  }
 
-    if (hasAnnotations) {
-      const preludeStr = prelude.join("\n")
-      const preludeCompressed = preludeStr ? LZString.compressToEncodedURIComponent(preludeStr) : ""
-      const preludeBytes = new TextEncoder().encode(preludeCompressed)
-      writeVLQ(customWriter, preludeBytes.length)
-      for (const byte of preludeBytes) {
-        customWriter.write(byte, 8)
-      }
+  if (hasAnnotations) {
+    const preludeStr = prelude.join("\n")
+    const preludeCompressed = preludeStr ? LZString.compressToEncodedURIComponent(preludeStr) : ""
+    const preludeBytes = new TextEncoder().encode(preludeCompressed)
+    writeVLQ(customWriter, preludeBytes.length)
+    for (const byte of preludeBytes) {
+      customWriter.write(byte, 8)
+    }
 
-      const annotationsStr = postTexts.join("\x00")
-      const annotationsCompressed = annotationsStr ? LZString.compressToEncodedURIComponent(annotationsStr) : ""
-      const annotationsBytes = new TextEncoder().encode(annotationsCompressed)
-      writeVLQ(customWriter, annotationsBytes.length)
-      for (const byte of annotationsBytes) {
-        customWriter.write(byte, 8)
-      }
+    const annotationsStr = postTexts.join("\x00")
+    const annotationsCompressed = annotationsStr ? LZString.compressToEncodedURIComponent(annotationsStr) : ""
+    const annotationsBytes = new TextEncoder().encode(annotationsCompressed)
+    writeVLQ(customWriter, annotationsBytes.length)
+    for (const byte of annotationsBytes) {
+      customWriter.write(byte, 8)
     }
   }
 

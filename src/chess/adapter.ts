@@ -81,18 +81,29 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
     function buildMoveMap(pos: typeof chess): Map<string, { from: number; to: number; promotion?: string }> {
       const moveMap = new Map<string, { from: number; to: number; promotion?: string }>()
       for (const [from, toDests] of pos.allDests()) {
+        // Only pawns can promote - check if the moving piece is a pawn
+        const piece = pos.board.get(from)
+        const isPawn = piece?.role === 'pawn'
+        
         for (const to of toDests) {
           const move = { from, to }
           try {
             const san = makeSan(pos, move as NormalMove)
             moveMap.set(san, move)
           } catch { }
-          for (const promotion of ["knight", "bishop", "rook", "queen"]) {
-            const promoMove = { from, to, promotion }
-            try {
-              const san = makeSan(pos, promoMove as NormalMove)
-              moveMap.set(san, promoMove)
-            } catch { }
+          // Only add promotions for pawn moves that reach the promotion rank (rank 0 or 7)
+          if (isPawn) {
+            const toRank = Math.floor(to / 8)
+            const isPromotionRank = toRank === 0 || toRank === 7
+            if (isPromotionRank) {
+              for (const promotion of ["knight", "bishop", "rook", "queen"]) {
+                const promoMove = { from, to, promotion }
+                try {
+                  const san = makeSan(pos, promoMove as NormalMove)
+                  moveMap.set(san, promoMove)
+                } catch { }
+              }
+            }
           }
         }
       }
@@ -191,9 +202,10 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
               const moveMap = buildMoveMap(chess)
               const found = findMoveBySan(moveMap, normalizedSan, chess)
               if (found) {
-                const captured = chess.board.get(found.to) !== undefined
                 const promoToChar: Record<string, string> = { knight: "n", bishop: "b", rook: "r", queen: "q" }
                 const canonicalSan = makeSan(chess, found as NormalMove)
+                // Use SAN to detect captures (contains "x") - this handles castling correctly
+                const captured = canonicalSan.includes("x")
                 moveHistory.push({
                   san: canonicalSan,
                   from: found.from,
@@ -205,9 +217,10 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
               }
             } else {
               const normalMove = parsed as NormalMove
-              const captured = chess.board.get(normalMove.to) !== undefined
               const promoToChar: Record<string, string> = { knight: "n", bishop: "b", rook: "r", queen: "q" }
               const canonicalSan = makeSan(chess, normalMove)
+              // Use SAN to detect captures (contains "x") - this handles castling correctly
+              const captured = canonicalSan.includes("x")
               moveHistory.push({
                 san: canonicalSan,
                 from: normalMove.from,
@@ -235,7 +248,8 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
         const moveMap = buildMoveMap(chess)
         const result: Move[] = []
         for (const [san, move] of moveMap) {
-          const captured = chess.board.get(move.to) !== undefined
+          // Use SAN to detect captures (contains "x") - this handles castling correctly
+          const captured = san.includes("x")
           const promoToChar: Record<string, string> = { knight: "n", bishop: "b", rook: "r", queen: "q" }
           result.push({
             san,
@@ -252,11 +266,12 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
         const moveMap = buildMoveMap(chess)
         const found = findMoveBySan(moveMap, san, chess)
         if (!found) return null
-        
+
         // Generate canonical SAN using makeSan (same as moves() uses)
         const canonicalSan = makeSan(chess, found as NormalMove)
-        
-        const captured = chess.board.get(found.to) !== undefined
+
+        // Use SAN to detect captures (contains "x") - this handles castling correctly
+        const captured = canonicalSan.includes("x")
         const promoToChar: Record<string, string> = { knight: "n", bishop: "b", rook: "r", queen: "q" }
         const result: Move = {
           san: canonicalSan,
