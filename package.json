@@ -15,7 +15,7 @@
   "homepage": "https://github.com/supertorpe/pgnpack",
   "repository": {
     "type": "git",
-    "url": "https://github.com/supertorpe/pgnpack.git"
+    "url": "git+https://github.com/supertorpe/pgnpack.git"
   },
   "bugs": {
     "url": "https://github.com/supertorpe/pgnpack/issues"
