@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 import { Chess } from "chess.js"
-import { encodePGNWith, decodePGNWith, createChessJsAdapter, createChessopsAdapter } from "../src"
+import { encodePGNWith, decodePGNWith, createChessJsAdapter, createChessopsAdapter, encodePGN, decodePGN } from "../src"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -190,6 +190,18 @@ describe("Test data files", () => {
             expect(decoded).toContain(clkStr)
           }
         }
+      })
+
+      it("encode/decode is idempotent for game-04.pgn", async () => {
+        const content = readFileSync(join(DATA_DIR, "game-04.pgn"), "utf-8")
+
+        const encoded1 = await encodePGNWith(chess, content, { tags: true, annotations: true })
+        const decoded1 = await decodePGNWith(chess, encoded1)
+
+        const encoded2 = await encodePGNWith(chess, decoded1, { tags: true, annotations: true })
+        const decoded2 = await decodePGNWith(chess, encoded2)
+
+        expect(decoded1).toBe(decoded2)
       })
     })
   }

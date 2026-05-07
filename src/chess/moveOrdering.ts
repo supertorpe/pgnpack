@@ -1,15 +1,18 @@
 /**
  * Move ordering heuristics for compression optimization
- * 
+ *
  * Reorders legal moves so that commonly-played moves get smaller indices,
  * requiring fewer bits to encode. This is the core of the compression scheme:
  * by predicting which move is likely, we use fewer bits to identify it.
- * 
+ *
  * Priority order (most likely first):
  * 1. Promotions (most significant)
  * 2. Captures
- * 3. Checks/checkmates
- * 4. From/to squares (tiebreaker)
+ * 3. From/to squares (tiebreaker)
+ *
+ * IMPORTANT: This function MUST produce identical ordering regardless of the
+ * input order from the chess library. We use SAN-based sorting which is
+ * consistent across both chess.js and chessops.
  */
 
 import { ChessAdapter, Move } from "./adapter"
@@ -20,8 +23,7 @@ import { ChessAdapter, Move } from "./adapter"
  * Creates a deterministic ordering where:
  * - Promotions come first (rare but high-impact)
  * - Captures come next (tactical moves)
- * - Checks/checkmates follow (aggressive moves)
- * - Square positions serve as final tiebreaker
+ * - SAN string serves as final tiebreaker (deterministic across libraries)
  *
  * The encoder writes the index of the actual move in this ordered list,
  * using ceil(log2(legal_moves)) bits per move.
@@ -31,45 +33,21 @@ import { ChessAdapter, Move } from "./adapter"
 export function orderMoves(chess: ChessAdapter) {
   const moves = chess.moves()
 
-  // Normalize square to numeric index (0-63) for consistent ordering
-  // chess.js uses algebraic notation (e.g., "e4"), chessops uses numbers (e.g., 36)
-  const normalizeSquare = (square: string | number): number => {
-    if (typeof square === "number") return square
-    // Convert algebraic notation to numeric index
-    const file = square.charCodeAt(0) - 97 // 'a' -> 0, 'b' -> 1, etc.
-    const rank = parseInt(square[1], 10) - 1 // '1' -> 0, '2' -> 1, etc.
-    return rank * 8 + file
-  }
-
-  // Create sort key: captured + check + from + to + promotion
-  // This ensures consistent ordering for the same position
+  // Create a FULLY deterministic sort key based on SAN
+  // SAN is consistent across both chess.js and chessops
   const getSortKey = (m: Move): string => {
-    const promo = m.promotion || ""
-    const captured = m.captured ? "1" : "0"
-    const check = m.san.includes("+") || m.san.includes("#") ? "1" : "0"
-    const from = normalizeSquare(m.from).toString().padStart(2, "0")
-    const to = normalizeSquare(m.to).toString().padStart(2, "0")
-    return captured + check + from + to + promo
+    // Priority flags: promotions (2), captures (1)
+    const isPromo = m.promotion ? "2" : "0"
+    const isCapture = m.captured ? "1" : "0"
+    // Use SAN as the ultimate tiebreaker - it's consistent across libraries
+    // Pad to ensure proper string sorting
+    const san = m.san.padEnd(10, " ")
+    // Combine into single key: priority + SAN
+    return isPromo + isCapture + san
   }
 
-  // Sort with explicit priority checks first
+  // Sort using ONLY the deterministic key - no library-dependent ordering
   moves.sort((a, b) => {
-    // Priority 1: Promotions first
-    if (a.promotion && !b.promotion) return -1
-    if (b.promotion && !a.promotion) return 1
-
-    // Priority 2: Captures second
-    if (a.captured && !b.captured) return -1
-    if (b.captured && !a.captured) return 1
-
-    // Priority 3: Checks third
-    const ca = a.san.includes("+") || a.san.includes("#")
-    const cb = b.san.includes("+") || b.san.includes("#")
-
-    if (ca && !cb) return -1
-    if (cb && !ca) return 1
-
-    // Priority 4: Square-based tiebreaker for deterministic ordering
     return getSortKey(a).localeCompare(getSortKey(b))
   })
 

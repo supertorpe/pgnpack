@@ -1,15 +1,21 @@
 /**
  * PGN Encoder - Compresses PGN chess games into compact base64url strings
- * 
+ *
  * The encoding process:
  * 1. Parse PGN into header (tags), prelude comments, and move text
  * 2. Encode using custom bit-level encoding with move ordering
- * 
+ *
  * Custom encoding:
  *   a. Generate all legal moves from current position
  *   b. Order them by likelihood (promotions, captures, checks)
  *   c. Write the index of the actual move (using minimal bits)
  *   d. Encode tags, prelude, and annotations as separate compressed blocks
+ *
+ * Variation encoding (v2 format):
+ *   - Each variation is length-prefixed for robust decoding
+ *   - 1 bit position flag (0=after, 1=before parent move)
+ *   - 10 bits length prefix (up to 1024 bytes)
+ *   - Variation content as byte-aligned bit stream
  */
 
 import { withChess, ChessAdapter } from "../chess/adapter"
@@ -20,22 +26,14 @@ import { writeVLQ } from "../compression/vlq"
 import LZString from "lz-string"
 import { encodeTagsBlock } from "../codec/tagCodec"
 import { CURRENT_VERSION } from "../constants"
+import { MoveNode } from "../types"
+import { parseRavTree } from "./ravParser"
 
-/**
- * Options for encoding PGN
- */
 export interface EncodeOptions {
-  tags?: boolean | string[]  // Which tag pairs to include: true for all, false for none (by default), or array of tag names
-  annotations?: boolean // Whether to include NAGs, comments, and prelude
+  tags?: boolean | string[]
+  annotations?: boolean
 }
 
-/**
- * Parses and filters PGN tag pairs based on options
- * 
- * @param tagsBlock - Raw tag section from PGN
- * @param tagFilter - true for all, false for none, or array of tag names
- * @returns Array of parsed tag objects
- */
 function parseAndFilterTags(tagsBlock: string, tagFilter: boolean | string[] | undefined): Array<{ name: string; value: string }> {
   if (!tagFilter || (Array.isArray(tagFilter) && tagFilter.length === 0)) {
     return []
@@ -62,18 +60,6 @@ function parseAndFilterTags(tagsBlock: string, tagFilter: boolean | string[] | u
   return tags
 }
 
-/**
- * Removes comments and NAG (Numeric Annotation Glyphs) from PGN
- * 
- * Strips:
- * - Block comments: { comment }
- * - Line comments: ; comment
- * - NAGs: $1, $2, etc.
- * 
- * Preserves spaces to maintain move positions in the string.
- * @param pgn - Raw PGN string
- * @returns PGN with annotations removed
- */
 function removeAnnotations(pgn: string): string {
   let result = ""
   let inBlockAnnotation = false
@@ -99,12 +85,6 @@ function removeAnnotations(pgn: string): string {
   return result
 }
 
-/**
- * Removes Recursive Annotation Variations (RAV) from PGN
- * 
- * @param pgn - Raw PGN string
- * @returns PGN with variations removed
- */
 function removeRav(pgn: string): string {
   let result = ""
   let depth = 0
@@ -120,12 +100,6 @@ function removeRav(pgn: string): string {
   return result
 }
 
-/**
- * Extracts prelude comments from PGN (comments between tags and first move)
- * 
- * @param text - Text between tags and moves
- * @returns Array of prelude comment strings
- */
 function extractPreludeComments(text: string): string[] {
   const comments: string[] = []
   let inBlockComment = false
@@ -173,15 +147,8 @@ function extractPreludeComments(text: string): string[] {
   return comments
 }
 
-/**
- * Extracts annotations (NAGs, comments) following a move
- * 
- * @param text - Text after the move
- * @returns Combined annotation string
- */
 function extractPostMoveAnnotations(text: string): string {
   let result = ""
-
   let inBlockComment = false
   let i = 0
   const endIndex = text.length
@@ -235,14 +202,6 @@ function extractPostMoveAnnotations(text: string): string {
   return result.trim()
 }
 
-/**
- * Extracts moves and optional post-move text (annotations) from PGN
- * 
- * @param prelude - Prelude section (before first move)
- * @param movesSection - Section containing moves
- * @param annotations - Whether to extract annotations
- * @returns Object with prelude comments and moves with annotations
- */
 async function findMovesAndPostText(prelude: string, movesSection: string, annotations: boolean = false): Promise<{ prelude: string[]; moves: Array<{ san: string; postText: string }> }> {
   return withChess(async (chess) => {
     const preludeComments = annotations ? extractPreludeComments(prelude) : []
@@ -310,9 +269,224 @@ async function findMovesAndPostText(prelude: string, movesSection: string, annot
   })
 }
 
+function extractMoveTreeWithAnnotations(movesSection: string, annotations: boolean = false): { tree: MoveNode[]; flatAnnotations: string[] } {
+  const tree = parseRavTree(movesSection)
+  const flatAnnotations: string[] = []
+
+  if (annotations) {
+    const collectAnnotations = (nodes: MoveNode[]) => {
+      for (const node of nodes) {
+        flatAnnotations.push(node.postText || "")
+        if (node.variations.length > 0) {
+          collectAnnotations(node.variations)
+        }
+      }
+    }
+    collectAnnotations(tree)
+  }
+
+  return { tree, flatAnnotations }
+}
+
+function extractVariationLine(root: MoveNode): MoveNode[] {
+  const line: MoveNode[] = []
+  let current: MoveNode | undefined = root
+  
+  while (current) {
+    line.push(current)
+    current = current.variations[0]
+  }
+  
+  return line
+}
+
 /**
- * Splits PGN into header tags, prelude comments, and move text
+ * Determines if a variation should be encoded from the BEFORE position
+ * by testing if the first move is legal from the AFTER position
  */
+function isVariationFromBefore(
+  chess: ChessAdapter,
+  _fenBeforeMove: string,
+  fenAfterMove: string,
+  variationLine: MoveNode[]
+): boolean {
+  if (variationLine.length === 0) return false
+  
+  const firstMoveSan = variationLine[0].san
+  
+  // Try from after position first
+  chess.load(fenAfterMove)
+  try {
+    const result = chess.move(firstMoveSan)
+    if (result) {
+      return false  // Legal from after, use after position
+    }
+  } catch {
+    // Move threw exception, try before position
+  }
+  
+  // Try from before position
+  chess.load(_fenBeforeMove)
+  try {
+    const result = chess.move(firstMoveSan)
+    if (result) {
+      return true  // Legal from before, use before position
+    }
+  } catch {
+    // Neither position works - this is an error
+    throw new Error(`Variation move ${firstMoveSan} is not legal from either position`)
+  }
+  
+  return false
+}
+
+/**
+ * Encodes a move tree (with variations) into the bitstream
+ *
+ * V2 format uses length-prefixed variations:
+ * - 4 bits variation count
+ * - 1 bit position flag (0=after, 1=before)
+ * - 10 bits length (up to 1024 bytes)
+ * - Variation content as bytes
+ */
+async function encodeMoveTree(
+  chess: ChessAdapter,
+  writer: BitWriter,
+  tree: MoveNode[],
+  annotationIndex: { value: number },
+  allAnnotations: string[],
+  _isRoot: boolean = true
+) {
+  const markerCount = 2
+  const LENGTH_BITS = 10
+
+  for (let i = 0; i < tree.length; i++) {
+    const node = tree[i]
+    const ordered = orderMoves(chess)
+
+    const _fenBeforeMove = chess.fen()
+
+    const moveObj = chess.move(node.san)
+    if (!moveObj) {
+      throw new Error(`Failed to play move: ${node.san}`)
+    }
+
+    const fenAfterMove = chess.fen()
+
+    const index = ordered.findIndex((m) => m.san === moveObj.san)
+    if (index === -1) {
+      throw new Error(`Move ${node.san} not found in ordered moves`)
+    }
+
+    const bits = Math.ceil(Math.log2(ordered.length + markerCount))
+    writer.write(index, bits)
+
+    allAnnotations[annotationIndex.value] = node.postText || ""
+    annotationIndex.value++
+
+    if (node.variations.length > 0) {
+      const nextNode = i + 1 < tree.length ? tree[i + 1] : null
+      const hasContinuation = node.variations.length > 0 && node.variations[0] === nextNode
+      const startVarIndex = hasContinuation ? 1 : 0
+      const numVariations = node.variations.length - startVarIndex
+
+      // Write number of variations (4 bits = up to 15 variations per move)
+      writer.write(numVariations, 4)
+
+      for (let v = startVarIndex; v < node.variations.length; v++) {
+        const variation = node.variations[v]
+        const variationLine = extractVariationLine(variation)
+
+        // Determine position
+        const fromBefore = isVariationFromBefore(chess, _fenBeforeMove, fenAfterMove, variationLine)
+
+        // Create temporary writer for variation content
+        const tempWriter = new BitWriter()
+
+        // Encode variation to temp writer as a FLAT tree (no chaining)
+        chess.load(fromBefore ? _fenBeforeMove : fenAfterMove)
+        await encodeMoveTreeAsFlat(chess, tempWriter, variationLine, annotationIndex, allAnnotations)
+        chess.load(fenAfterMove)
+
+        // Get variation bytes
+        const variationBytes = tempWriter.toBytes()
+
+        // Write position flag to main writer
+        writer.write(fromBefore ? 1 : 0, 1)
+
+        // Write length to main writer (10 bits)
+        if (variationBytes.length >= (1 << LENGTH_BITS)) {
+          throw new Error(`Variation too large: ${variationBytes.length} bytes (max: ${1 << LENGTH_BITS})`)
+        }
+        writer.write(variationBytes.length, LENGTH_BITS)
+
+        // Write variation bytes to main writer
+        for (const byte of variationBytes) {
+          writer.write(byte, 8)
+        }
+      }
+
+      chess.load(fenAfterMove)
+    } else {
+      // No variations - write 0 count
+      writer.write(0, 4)
+    }
+  }
+
+  // Write end-of-tree marker
+  const ordered = orderMoves(chess)
+  const bits = Math.ceil(Math.log2(ordered.length + markerCount))
+  writer.write(ordered.length, bits)
+}
+
+/**
+ * Encodes a move tree as a FLAT sequence (no chaining via variations[0])
+ * This is used for encoding variations so they decode as proper sequences
+ */
+async function encodeMoveTreeAsFlat(
+  chess: ChessAdapter,
+  writer: BitWriter,
+  tree: MoveNode[],
+  annotationIndex: { value: number },
+  allAnnotations: string[]
+) {
+  const markerCount = 2
+
+  for (let i = 0; i < tree.length; i++) {
+    const node = tree[i]
+    const ordered = orderMoves(chess)
+
+    const moveObj = chess.move(node.san)
+    if (!moveObj) {
+      throw new Error(`Failed to play move: ${node.san}`)
+    }
+
+    const fenAfterMove = chess.fen()
+
+    const index = ordered.findIndex((m) => m.san === moveObj.san)
+    if (index === -1) {
+      throw new Error(`Move ${node.san} not found in ordered moves`)
+    }
+
+    const bits = Math.ceil(Math.log2(ordered.length + markerCount))
+    writer.write(index, bits)
+
+    allAnnotations[annotationIndex.value] = node.postText || ""
+    annotationIndex.value++
+
+    // For flat encoding, we DON'T encode sub-variations here
+    // They would need to be handled separately if needed
+    writer.write(0, 4) // No sub-variations in flat mode
+
+    chess.load(fenAfterMove)
+  }
+
+  // Write end-of-tree marker
+  const ordered = orderMoves(chess)
+  const bits = Math.ceil(Math.log2(ordered.length + markerCount))
+  writer.write(ordered.length, bits)
+}
+
 async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Promise<{ tags: Array<{ name: string; value: string }>; prelude: string[]; moves: Array<{ san: string; postText: string }> }> {
   const lines = pgn.split("\n")
 
@@ -349,35 +523,43 @@ async function splitPgnIntoParts(pgn: string, options: EncodeOptions = {}): Prom
   return { tags, prelude: moveData.prelude, moves: moveData.moves }
 }
 
-/**
- * Extracts metadata flags from encoding options
- */
 function getMetadataFlags(options: EncodeOptions): { hasTags: boolean; hasAnnotations: boolean } {
   const hasTags = Boolean(options.tags && (options.tags === true || (Array.isArray(options.tags) && options.tags.length > 0)))
   const hasAnnotations = options.annotations ?? false
   return { hasTags, hasAnnotations }
 }
 
-/**
- * Core encoding logic - used by both encodePGN and encodePGNWith
- */
 async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptions): Promise<string> {
   const { hasTags, hasAnnotations } = getMetadataFlags(options)
 
   const parts = await splitPgnIntoParts(pgn, options)
   const tags = parts.tags
   const prelude = parts.prelude
-  const moveList = parts.moves.map((m) => m.san)
-  const postTexts = parts.moves.map((m) => m.postText)
 
-  chess.loadPgn(moveList.join(" "))
+  // Extract movetext section for tree parsing
+  const lines = pgn.split("\n")
+  let headerEndIndex = 0
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim()
+    if (trimmed === "") continue
+    if (!trimmed.startsWith("[")) {
+      headerEndIndex = i
+      break
+    }
+  }
+  const movesSection = lines.slice(headerEndIndex).join(" ").trim()
+  const { tree, flatAnnotations } = extractMoveTreeWithAnnotations(movesSection, hasAnnotations)
+
+  // Tree encoding is always used; the flag ensures the decoder enters tree path
+  const hasVariations = true
+
   chess.reset()
-
   const customWriter = new BitWriter()
 
   writeVLQ(customWriter, CURRENT_VERSION)
   customWriter.write(hasTags ? 1 : 0, 1)
   customWriter.write(hasAnnotations ? 1 : 0, 1)
+  customWriter.write(hasVariations ? 1 : 0, 1)
 
   if (hasTags) {
     const tagsString = tags.map(t => `[${t.name} "${t.value}"]`).join("\n")
@@ -397,7 +579,8 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
       customWriter.write(byte, 8)
     }
 
-    const annotationsStr = postTexts.join("\x00")
+    // Write annotations in tree depth-first order
+    const annotationsStr = flatAnnotations.length > 0 ? flatAnnotations.join("\x00") : ""
     const annotationsCompressed = annotationsStr ? LZString.compressToEncodedURIComponent(annotationsStr) : ""
     const annotationsBytes = new TextEncoder().encode(annotationsCompressed)
     writeVLQ(customWriter, annotationsBytes.length)
@@ -406,26 +589,19 @@ async function _encodePGN(chess: ChessAdapter, pgn: string, options: EncodeOptio
     }
   }
 
-  writeVLQ(customWriter, moveList.length)
+  // Always encode as tree
+  const allAnnotations = hasAnnotations ? [...flatAnnotations] : []
+  const annotationIndex = { value: 0 }
 
-  for (let i = 0; i < moveList.length; i++) {
-    const san = moveList[i]
-    const ordered = orderMoves(chess)
-
-    const moveObj = chess.move(san)
-    if (!moveObj) {
-      throw new Error(`Failed to play move: ${san}`)
-    }
-
-    const index = ordered.findIndex((m) => m.san === moveObj.san)
-
-    const bits = Math.ceil(Math.log2(ordered.length))
-
-    customWriter.write(index, bits)
+  const treeWriter = new BitWriter()
+  await encodeMoveTree(chess, treeWriter, tree, annotationIndex, allAnnotations, true)
+  const treeBytes = treeWriter.toBytes()
+  writeVLQ(customWriter, treeBytes.length)
+  for (const byte of treeBytes) {
+    customWriter.write(byte, 8)
   }
 
   const customEncoded = base64urlEncode(customWriter.toBytes())
-
   return customEncoded
 }
 

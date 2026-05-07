@@ -9,6 +9,7 @@ Ultra-compact PGN compression into Base64URL strings using bit-level encoding an
 - PGN compression using legal move indexing
 - Tag filtering support (e.g., `[Event]`, `[White]`, `[Black]`)
 - Annotations and NAG support
+- RAV (Recursive Annotation Variation) support
 - URL-safe output
 - TypeScript support
 - **Dual chess library support**: Works with either chess.js or chessops
@@ -113,8 +114,6 @@ Decodes a compact base64url string back to PGN.
 **Returns:** PGN string (with tags and annotations if they were encoded)
 
 ## Future Work
-
-- **RAV (Recursive Annotation Variation) support**: Add support for encoding/decoding PGN files containing RAV (variations indicated by parentheses). Currently, RAV variations are stripped during encoding.
 
 - **Efficient compression for meaningful annotations**: Add more efficient compression for meaningful annotations (i.e. evals, clocks). Currently, annotations are compressed using lz-string, but specialized encoding for structured data like evaluation scores and clock times could improve compression ratios.
 

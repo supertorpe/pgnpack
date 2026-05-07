@@ -13,4 +13,5 @@
 export { encodePGN, encodePGNWith, type EncodeOptions } from "./encoder/encodePGN"
 export { decodePGN, decodePGNWith } from "./decoder/decodePGN"
 export { createChessAsync, createChessJsAdapter, createChessopsAdapter, type ChessAdapter, type Move } from "./chess/adapter"
+export { parseRavTree } from "./encoder/ravParser"
 export { CURRENT_VERSION, MIN_COMPATIBLE_VERSION } from "./constants"

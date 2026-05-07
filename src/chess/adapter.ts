@@ -31,6 +31,8 @@ export interface ChessAdapter {
   reset(): void                  // Reset to starting position
   moves(): Move[]                // Get all legal moves from current position
   move(san: string): Move | null // Make a move and return the move object
+  fen(): string                  // Get FEN string of current position
+  load(fen: string): void        // Load position from FEN string
 }
 
 // Global cache for auto-detected adapter
@@ -62,6 +64,14 @@ async function tryCreateChessJsAdapter(): Promise<ChessAdapter | null> {
       move(san: string): Move | null {
         return chess.move(san) as Move | null
       },
+
+      fen(): string {
+        return chess.fen()
+      },
+
+      load(fen: string): void {
+        chess.load(fen)
+      },
     }
   } catch {
     return null
@@ -71,6 +81,7 @@ async function tryCreateChessJsAdapter(): Promise<ChessAdapter | null> {
 async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
   try {
     const chessopsChess = await import("chessops/chess")
+    const chessopsFen = await import("chessops/fen")
     const { makeSanAndPlay, makeSan, parseSan } = await import("chessops/san")
     const { parsePgn, startingPosition } = await import("chessops/pgn")
     type NormalMove = { from: number; promotion?: "pawn" | "knight" | "bishop" | "rook" | "queen" | "king"; to: number }
@@ -86,16 +97,18 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
         const isPawn = piece?.role === 'pawn'
         
         for (const to of toDests) {
-          const move = { from, to }
-          try {
-            const san = makeSan(pos, move as NormalMove)
-            moveMap.set(san, move)
-          } catch { }
-          // Only add promotions for pawn moves that reach the promotion rank (rank 0 or 7)
-          if (isPawn) {
+          // Skip illegal non-promotion moves for pawns reaching the last rank
+          if (!isPawn) {
+            const move = { from, to }
+            try {
+              const san = makeSan(pos, move as NormalMove)
+              moveMap.set(san, move)
+            } catch { }
+          } else {
             const toRank = Math.floor(to / 8)
             const isPromotionRank = toRank === 0 || toRank === 7
             if (isPromotionRank) {
+              // Only add promotion variants, not the bare non-promotion move
               for (const promotion of ["knight", "bishop", "rook", "queen"]) {
                 const promoMove = { from, to, promotion }
                 try {
@@ -103,6 +116,13 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
                   moveMap.set(san, promoMove)
                 } catch { }
               }
+            } else {
+              // Non-promotion pawn move
+              const move = { from, to }
+              try {
+                const san = makeSan(pos, move as NormalMove)
+                moveMap.set(san, move)
+              } catch { }
             }
           }
         }
@@ -264,7 +284,8 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
 
       move(san: string): Move | null {
         const moveMap = buildMoveMap(chess)
-        const found = findMoveBySan(moveMap, san, chess)
+        const normalizedSan = san.replace(/0-0-0/g, "O-O-O").replace(/0-0/g, "O-O")
+        const found = findMoveBySan(moveMap, normalizedSan, chess)
         if (!found) return null
 
         // Generate canonical SAN using makeSan (same as moves() uses)
@@ -282,6 +303,16 @@ async function tryCreateChessopsAdapter(): Promise<ChessAdapter | null> {
         }
         makeSanAndPlay(chess, found as NormalMove)
         return result
+      },
+
+      fen(): string {
+        return chessopsFen.makeFen(chess.toSetup())
+      },
+
+      load(fenStr: string): void {
+        const setup = chessopsFen.parseFen(fenStr).unwrap()
+        chess = chessopsChess.Chess.fromSetup(setup).unwrap()
+        moveHistory.length = 0
       },
     }
   } catch {

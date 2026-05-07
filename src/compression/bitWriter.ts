@@ -1,6 +1,6 @@
 /**
  * BitWriter - Accumulates individual bits and converts them to bytes
- * 
+ *
  * Used for writing variable-length bit sequences that represent encoded chess moves.
  * Bits are stored in an array and later packed into bytes for base64url encoding.
  */
@@ -25,10 +25,37 @@ export class BitWriter {
   }
 
   /**
+   * Returns total bits written
+   */
+  getBitsWritten(): number {
+    return this.bits.length
+  }
+
+  /**
+   * Returns bytes written (rounded up to next whole byte)
+   */
+  getBytesWritten(): number {
+    return Math.ceil(this.bits.length / 8)
+  }
+
+  /**
+   * Pads to next byte boundary with zeros
+   */
+  padToByteBoundary(): void {
+    while (this.bits.length % 8 !== 0) {
+      this.write(0, 1)
+    }
+  }
+
+  /**
    * Packs the accumulated bits into bytes (8 bits per byte)
+   * Automatically pads to byte boundary before packing
    * @returns Uint8Array of packed bytes
    */
   toBytes():Uint8Array{
+
+    // Pad to byte boundary first
+    this.padToByteBoundary()
 
     const bytes:number[] = []
 
